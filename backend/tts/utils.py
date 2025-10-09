@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Глобальная переменная для модели
 TTS_MODEL = None
-REFERENCE_WAV_PATH = os.path.abspath(os.path.join(settings.BASE_DIR, '..', 'docs', 'audio1.wav'))
+REFERENCE_WAV_PATH = os.path.abspath(os.path.join(settings.BASE_DIR, '..', 'docs', 'audio.wav'))
 
 
 def initialize_model():
@@ -38,7 +38,6 @@ def text_to_speech(text):
     
     Args:
         text: Текст для синтеза
-        speaker_wav_path: Путь к WAV файлу с голосом спикера (опционально)
     
     Returns:
         str: Путь к сгенерированному аудиофайлу
