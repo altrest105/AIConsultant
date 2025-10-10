@@ -45,7 +45,6 @@ INSTALLED_APPS = [
     # Local apps
     'stt',
     'tts',
-    'qa',
 ]
 
 # CORS настройки для разработки
@@ -167,7 +166,3 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
-
-# Настройки для файлов
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
