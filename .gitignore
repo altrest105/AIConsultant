@@ -31,3 +31,6 @@ coverage.xml
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# Files altrest
+.materials
