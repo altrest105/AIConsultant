@@ -16,6 +16,7 @@ av==15.1.0
 babel==2.17.0
 backoff==2.2.1
 beautifulsoup4==4.14.2
+bitsandbytes==0.48.1
 cachetools==6.2.0
 certifi==2025.10.5
 cffi==2.0.0

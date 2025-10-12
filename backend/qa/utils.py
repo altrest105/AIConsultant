@@ -1,6 +1,16 @@
 import os
 import logging
 from pathlib import Path
+
+new_cache_dir = Path("D:/Programs/HuggingFace_Cache") 
+new_cache_dir.mkdir(parents=True, exist_ok=True) # Создаем папку, если ее нет
+
+# Установка переменной окружения HF_HOME
+# HuggingFace будет использовать эту папку для всего кэша (модели, датасеты, токены)
+os.environ['HF_HOME'] = str(new_cache_dir)
+os.environ['TRANSFORMERS_CACHE'] = str(new_cache_dir / "models")
+
+from pydantic import Field, PrivateAttr
 from typing import List, Dict, Any, Optional
 import torch
 import pickle
@@ -12,10 +22,10 @@ import random
 import numpy as np
 import warnings
 
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Qdrant
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.llms import HuggingFacePipeline
+from langchain_community.llms import HuggingFacePipeline
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain.schema import Document
@@ -31,14 +41,10 @@ from transformers import (
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
-from qdrant_client.http.exceptions import UnexpectedResponse
 
 from sentence_transformers import CrossEncoder
 
 from rank_bm25 import BM25Okapi
-
-from unstructured.partition.auto import partition
-from unstructured.documents.elements import Element
 
 # Настройка логгера
 logging.basicConfig(
@@ -71,13 +77,13 @@ CONFIG = {
     "SEED": 42,           # Random seed для воспроизводимости
     
     # Параметры LLM
-    "LLM_MODEL_NAME": "Qwen/Qwen2.5-7B-Instruct",
+    "LLM_MODEL_NAME": "Qwen/Qwen2.5-1.5B-Instruct",
     "EMBEDDING_MODEL_NAME": "BAAI/bge-m3",
     "RERANKER_MODEL_NAME": "BAAI/bge-reranker-v2-m3",
     
     # Конфигурация сплиттинга документов
-    "CHUNK_SIZE": 1500,
-    "CHUNK_OVERLAP": 200,
+    "CHUNK_SIZE": 400,
+    "CHUNK_OVERLAP": 50,
     
     # Конфигурация бенчмарка
     "BENCHMARK": {
@@ -241,7 +247,7 @@ def _initialize_vector_store():
         try:
             client.get_collection(collection_name)
             logger.info(f"✅ Qdrant: Коллекция '{collection_name}' существует.")
-        except UnexpectedResponse:
+        except Exception as e:
              client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=embedding_size, distance=Distance.COSINE)
@@ -297,10 +303,10 @@ def initialize_qa_system(mode: str = CONFIG["mode"], force_reload: bool = False)
 
 def _parse_document_universal(file_path: Path) -> List[Document]:
     """
-    Парсит DOCX, PDF, TXT с помощью 'unstructured', разделяет на чанки
+    Парсит DOCX и TXT, разделяет на чанки
     и возвращает список LangChain Document.
     
-    Используется для сохранения структуры документа (таблицы, заголовки).
+    Используется для сохранения структуры документа (DOCX, TXT).
     
     Args:
         file_path: Путь к файлу.
@@ -308,26 +314,39 @@ def _parse_document_universal(file_path: Path) -> List[Document]:
     Returns:
         Список объектов Document с метаданными.
     """
-    logger.info(f"📄 Парсинг файла (Unstructured): {file_path.name}")
+    logger.info(f"📄 Парсинг файла: {file_path.name}")
+    
+    full_text = ""
+    file_type = file_path.suffix.lstrip('.')
     
     try:
-        elements: List[Element] = partition(filename=str(file_path))
-        
-        # Объединение элементов в один большой текст
-        full_text = "\n\n".join([str(el) for el in elements])
-        
+        if file_type == 'docx':
+            # Используем python-docx
+            from docx import Document as DocxDocument
+            doc = DocxDocument(file_path)
+            # Извлекаем текст из всех параграфов
+            full_text = "\n\n".join([paragraph.text for paragraph in doc.paragraphs])
+            
+        else:
+            logger.warning(f"⚠️ Неподдерживаемый формат файла: .{file_type}")
+            return []
+            
+        if not full_text.strip():
+             logger.warning(f"⚠️ Файл пуст или содержит только пробелы: {file_path.name}")
+             return []
+
         logger.info(f"✅ Файл распарсен: {len(full_text)} символов")
         
         # Рекурсивный сплиттер для создания чанков
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=CONFIG["CHUNK_SIZE"],
             chunk_overlap=CONFIG["CHUNK_OVERLAP"],
-            separators=["\n\n\n", "\n\n", "\n", " ", ""]
+            separators=["\n\n\n", "\n\n", "\n", " ", ""] # Оставляем разделители для структуры
         )
         
         documents = text_splitter.create_documents(
             texts=[full_text],
-            metadatas=[{"source": file_path.name, "doc_type": file_path.suffix.lstrip('.')}]
+            metadatas=[{"source": file_path.name, "doc_type": file_type}]
         )
         
         logger.info(f"📚 Разделено на {len(documents)} чанков.")
@@ -390,7 +409,7 @@ def index_document(file_path: Path):
 
 def index_knowledge_base(folder_path: Path):
     """
-    Индексирует все поддерживаемые документы (.docx, .pdf, .txt) из указанной папки.
+    Индексирует все поддерживаемые документы (.docx, .txt) из указанной папки.
     
     Args:
         folder_path: Путь к папке с исходными документами.
@@ -403,7 +422,7 @@ def index_knowledge_base(folder_path: Path):
         logger.error(f"❌ Папка не найдена: {folder_path}")
         return
     
-    supported_formats = ['.docx', '.pdf', '.txt']
+    supported_formats = ['.docx', '.txt']
     
     files_to_index = []
     for ext in supported_formats:
@@ -427,17 +446,27 @@ def index_knowledge_base(folder_path: Path):
 
 class EnhancedHybridRetriever(BaseRetriever):
     """
-    Кастомный ретривер, реализующий гибридный поиск (Vector + BM25) с 
-    использованием Reciprocal Rank Fusion (RRF) и финальным Reranker.
+    Кастомный ретривер, реализующий гибридный поиск (Vector + BM25) 
+    с использованием Reciprocal Rank Fusion (RRF) и финальным Reranker.
     """
     
-    def __init__(self, vector_store: Qdrant, reranker: CrossEncoder):
-        self.vector_store = vector_store
-        self.reranker = reranker
-        self.k_vec = CONFIG["K_VEC"]
-        self.k_bm25 = CONFIG["K_BM25"]
-        self.alpha = CONFIG["ALPHA"]
-        self.top_n = CONFIG["TOP_N_RERANKER"]
+    # Объявление основных компонентов как полей Pydantic
+    vector_store: Qdrant = Field(..., description="LangChain Qdrant VectorStore instance.")
+    reranker: CrossEncoder = Field(..., description="Sentence Transformer CrossEncoder instance.")
+
+    # Объявление остальных атрибутов (если они должны быть установлены при инициализации)
+    # Используем PrivateAttr или просто атрибуты класса/экземпляра, в зависимости от требований.
+    k_vec: int = CONFIG["K_VEC"]
+    k_bm25: int = CONFIG["K_BM25"]
+    alpha: float = CONFIG["ALPHA"]
+    top_n: int = CONFIG["TOP_N_RERANKER"]
+
+    # Добавляем Config для разрешения нестандартных типов данных (Qdrant, CrossEncoder)
+    class Config:
+        arbitrary_types_allowed = True
+        
+    # Удалить метод __init__, т.к. он теперь обрабатывается Pydantic. 
+    # Если нужна дополнительная инициализация, использовать метод _post_init_ или validate
 
     def _get_relevant_documents(self, query: str, **kwargs) -> List[Document]:
         """
@@ -599,12 +628,12 @@ def answer_question(question: str) -> Dict[str, Any]:
     expanded_query = _apply_hyde(question) if CONFIG["USE_HYDE"] else question
 
     # 2. Retriever setup
-    retriever = EnhancedHybridRetriever(VECTOR_STORE, RERANKER)
+    retriever = EnhancedHybridRetriever(vector_store=VECTOR_STORE, reranker=RERANKER)
     
     # 3. RetrievalQA Chain setup
     QA_PROMPT = PromptTemplate(
         template=(
-            "Ты — высокоточный QA-бот. Используй ТОЛЬКО предоставленный контекст. "
+            "ТЫ — ФАКТОЛОГИЧЕСКИЙ БОТ. ОТВЕЧАЙ СТРОГО, ИСПОЛЬЗУЯ ТОЛЬКО КОНТЕКСТ. "
             "Сначала проведи АНАЛИЗ (цепочку рассуждений) того, как контекст отвечает на вопрос. "
             "Затем дай КРАТКИЙ, но полный ответ, используя строгий формат.\n\n"
             "КРИТИЧЕСКИЕ ПРАВИЛА: "
@@ -626,7 +655,7 @@ def answer_question(question: str) -> Dict[str, Any]:
         return_source_documents=True
     )
 
-    result = qa_chain({"query": expanded_query})
+    result = qa_chain.invoke({"query": expanded_query}) 
     
     end_time = time.time()
     latency = end_time - start_time
@@ -810,37 +839,200 @@ def run_benchmark(benchmark_questions: List[Dict[str, Any]], save_path: str = "b
 
 # --- ПРИМЕР ИСПОЛЬЗОВАНИЯ ---
 
+# --- ОБНОВЛЕННЫЙ MAIN С ЗАЩИТОЙ ОТ ОШИБОК ---
+
+
 if __name__ == '__main__':
-    # 1. Инициализация системы
-    initialize_qa_system()
-    
-    # 2. Индексация базы знаний (DOCX, PDF, TXT)
-    # Путь настроен относительно каталога TransConsultant/backend/qa/
-    docs_folder_path = Path("../../docs")
-    
-    if docs_folder_path.exists():
-        index_knowledge_base(docs_folder_path)
-    else:
-        logger.warning(f"⚠️ Папка базы знаний не найдена: {docs_folder_path.resolve()}")
-        logger.info("💡 Создайте папку 'docs' на корневом уровне проекта TransConsultant")
-    
-    # 3. Генерация профессионального бенчмарка
-    if BM25_CORPUS and len(BM25_CORPUS) > 5:
-        logger.info("\n" + "="*60)
-        logger.info("🎯 ГЕНЕРАЦИЯ БЕНЧМАРКА")
+    try:
+        logger.info("="*60)
+        logger.info("🚀 ЗАПУСК QA-СИСТЕМЫ TRANSCONSULTANT")
         logger.info("="*60 + "\n")
         
-        # Генерация 100 вопросов на основе корпуса
+        # 1. КРИТИЧНО: Инициализация системы
+        logger.info("Шаг 1/4: Инициализация компонентов...")
+        initialize_qa_system()
+        
+        # 2. Проверка базы знаний
+        logger.info("\nШаг 2/4: Проверка базы знаний...")
+        docs_folder_path = Path("docs")
+        
+        if not docs_folder_path.exists():
+            logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Папка не найдена: {docs_folder_path.resolve()}")
+            logger.info("💡 РЕШЕНИЕ: Создайте папку 'docs' в корне проекта:")
+            logger.info(f"   mkdir {docs_folder_path.resolve()}")
+            logger.info("   Поместите туда файлы .docx, .txt")
+            exit(1)
+        
+        # Проверка наличия файлов
+        supported_formats = ['.docx', '.txt']
+        all_files = []
+        for ext in supported_formats:
+            all_files.extend(list(docs_folder_path.glob(f"*{ext}")))
+        
+        if not all_files:
+            logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Нет файлов для индексации в {docs_folder_path.resolve()}")
+            logger.info("💡 РЕШЕНИЕ: Добавьте файлы .docx или .txt в папку docs/")
+            exit(1)
+        
+        logger.info(f"✅ Найдено {len(all_files)} файлов для индексации")
+        
+        # 3. Индексация
+        logger.info("\nШаг 3/4: Индексация базы знаний...")
+        index_knowledge_base(docs_folder_path)
+        
+        if not BM25_CORPUS:
+            logger.error("❌ КРИТИЧЕСКАЯ ОШИБКА: Корпус пуст после индексации")
+            exit(1)
+        
+        logger.info(f"✅ Корпус готов: {len(BM25_CORPUS)} чанков")
+        
+        # 4. Генерация бенчмарка
+        logger.info("\nШаг 4/4: Генерация бенчмарка...")
+        
+        if len(BM25_CORPUS) < 5:
+            logger.warning(f"⚠️ Корпус слишком мал ({len(BM25_CORPUS)} чанков). Минимум: 5")
+            logger.info("💡 Добавьте больше документов в папку docs/")
+            exit(1)
+        
         benchmark = generate_diverse_benchmark(BM25_CORPUS, N=CONFIG["BENCHMARK"]["N_QUESTIONS"])
+        
+        if not benchmark:
+            logger.error("❌ Не удалось сгенерировать бенчмарк")
+            exit(1)
         
         # Сохранение вопросов
         with open("benchmark_questions.json", "w", encoding="utf-8") as f:
             json.dump(benchmark, f, indent=2, ensure_ascii=False)
         
-        logger.info("✅ Бенчмарк вопросов сохранен: benchmark_questions.json")
+        logger.info(f"✅ Бенчмарк сохранен: benchmark_questions.json ({len(benchmark)} вопросов)")
         
-        # 4. Запуск оценки
-        if benchmark:
-            run_benchmark(benchmark, save_path="final_benchmark_metrics.json")
-    else:
-        logger.warning("⚠️ Корпус слишком мал или пуст. Бенчмарк не запущен.")
+        # 5. Запуск оценки
+        logger.info("\n" + "="*60)
+        logger.info("🎯 ЗАПУСК ОЦЕНКИ БЕНЧМАРКА")
+        logger.info("="*60 + "\n")
+        
+        run_benchmark(benchmark, save_path="final_benchmark_metrics.json")
+        
+        logger.info("\n" + "="*60)
+        logger.info("✅ ВСЕ ОПЕРАЦИИ УСПЕШНО ЗАВЕРШЕНЫ")
+        logger.info("="*60)
+        logger.info("\nФайлы результатов:")
+        logger.info("  • benchmark_questions.json - Сгенерированные вопросы")
+        logger.info("  • final_benchmark_metrics.json - Метрики оценки")
+        logger.info("  • bm25_corpus.pkl - Индекс BM25")
+        logger.info("  • qdrant_storage/ - Векторная БД")
+        
+    except KeyboardInterrupt:
+        logger.warning("\n⚠️ Прервано пользователем (Ctrl+C)")
+        exit(0)
+        
+    except Exception as e:
+        logger.error("\n" + "="*60)
+        logger.error("❌ КРИТИЧЕСКАЯ ОШИБКА")
+        logger.error("="*60)
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        logger.error(f"Сообщение: {str(e)}")
+        logger.error("\nСтек вызовов:", exc_info=True)
+        logger.error("\n💡 ВОЗМОЖНЫЕ ПРИЧИНЫ:")
+        logger.error("  1. Недостаточно VRAM (требуется ~8GB)")
+        logger.error("  2. Проблемы с CUDA (проверьте: nvidia-smi)")
+        logger.error("  3. Битые файлы в папке docs/")
+        logger.error("  4. Отсутствие зависимостей (pip install -r requirements.txt)")
+        exit(1)
+
+
+
+# if __name__ == '__main__':
+#     try:
+#         logger.info("="*60)
+#         logger.info("🚀 ЗАПУСК QA-СИСТЕМЫ TRANSCONSULTANT")
+#         logger.info("="*60 + "\n")
+        
+#         # 1. КРИТИЧНО: Инициализация системы
+#         logger.info("Шаг 1/3: Инициализация компонентов...")
+#         initialize_qa_system()
+        
+#         # 2. Проверка базы знаний
+#         logger.info("\nШаг 2/3: Проверка базы знаний...")
+#         docs_folder_path = Path("docs")
+        
+#         if not docs_folder_path.exists():
+#             logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Папка не найдена: {docs_folder_path.resolve()}")
+#             logger.info("💡 РЕШЕНИЕ: Создайте папку 'docs' и поместите туда файлы .docx, .txt")
+#             exit(1)
+        
+#         # Проверка наличия файлов
+#         supported_formats = ['.docx', '.txt']
+#         all_files = []
+#         for ext in supported_formats:
+#             all_files.extend(list(docs_folder_path.glob(f"*{ext}")))
+        
+#         if not all_files:
+#             logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Нет файлов для индексации в {docs_folder_path.resolve()}")
+#             logger.info("💡 РЕШЕНИЕ: Добавьте файлы .docx или .txt в папку docs/")
+#             exit(1)
+        
+#         logger.info(f"✅ Найдено {len(all_files)} файлов для индексации")
+        
+#         # 3. Индексация
+#         logger.info("\nШаг 3/3: Индексация базы знаний...")
+#         index_knowledge_base(docs_folder_path)
+        
+#         if not BM25_CORPUS:
+#             logger.error("❌ КРИТИЧЕСКАЯ ОШИБКА: Корпус пуст после индексации")
+#             exit(1)
+        
+#         logger.info(f"✅ Корпус готов: {len(BM25_CORPUS)} чанков")
+        
+#         # 4. 🔥 ИНТЕРАКТИВНОЕ ТЕСТИРОВАНИЕ answer_question
+#         logger.info("\n" + "="*60)
+#         logger.info("✨ СИСТЕМА ГОТОВА К ТЕСТИРОВАНИЮ answer_question()")
+#         logger.info("="*60)
+        
+#         # Выполняем тестовый запрос из примера
+#         test_question = "Какова длина нефтепровода Нижневартовск — Усть-Балык?"
+#         logger.info(f"\n💡 ТЕСТ: Выполняем тестовый запрос: '{test_question}'")
+        
+#         result = answer_question(test_question)
+        
+#         print("\n" + "="*60)
+#         print("🔍 РЕЗУЛЬТАТ ТЕСТОВОГО ЗАПРОСА:")
+#         print(f"  ВОПРОС: {test_question}")
+#         print(f"  ОТВЕТ: {result['answer']}")
+#         print(f"  ЗАДЕРЖКА: {result['latency_sec']:.2f} сек")
+#         print(f"  ИСТОЧНИКИ: {result['source_documents']}")
+#         print("="*60)
+        
+#         # Бесконечный цикл для ручного ввода
+#         logger.info("💡 СИСТЕМА ГОТОВА. Введите 'exit' или 'quit' для завершения.")
+#         while True:
+#             user_input = input("❓ Ваш вопрос (или 'exit'): ")
+#             if user_input.lower() in ['exit', 'quit']:
+#                 break
+            
+#             if user_input.strip():
+#                 test_result = answer_question(user_input)
+#                 print("\n" + "="*60)
+#                 print(f"✅ ОТВЕТ: {test_result['answer']}")
+#                 print(f"⏱️  Задержка: {test_result['latency_sec']:.2f}s")
+#                 print(f"📚 Источники: {test_result['source_documents']}")
+#                 print("="*60 + "\n")
+
+
+#     except KeyboardInterrupt:
+#         logger.warning("\n⚠️ Прервано пользователем (Ctrl+C)")
+#         exit(0)
+        
+#     except Exception as e:
+#         logger.error("\n" + "="*60)
+#         logger.error("❌ КРИТИЧЕСКАЯ ОШИБКА")
+#         logger.error("="*60)
+#         logger.error(f"Тип ошибки: {type(e).__name__}")
+#         logger.error(f"Сообщение: {str(e)}")
+#         logger.error("\nСтек вызовов:", exc_info=True)
+#         logger.error("\n💡 ВОЗМОЖНЫЕ ПРИЧИНЫ:")
+#         logger.error("  1. Недостаточно VRAM (требуется ~8GB)")
+#         logger.error("  2. Проблемы с CUDA (проверьте: nvidia-smi)")
+#         logger.error("  3. Битые файлы в папке docs/")
+#         logger.error("  4. Отсутствие зависимостей (pip install -r requirements.txt)")
+#         exit(1)
