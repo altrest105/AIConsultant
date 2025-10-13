@@ -35,4 +35,6 @@ coverage.xml
 # Files altrest
 .materials
 tts_test.html
-backend/hf_cache/
+backend/files/hf_cache/
+backend/files/qdrant_storage/
+backend/files/audio_bot.wav

@@ -497,7 +497,7 @@ def text_to_speech_streaming(text):
         
         try:
             # Генерируем аудио
-            reference_wav_path = settings.TTS_CONFIG.get("REFERENCE_WAV_PATH", os.path.abspath(os.path.join(settings.BASE_DIR, 'docs', 'audio.wav')))
+            reference_wav_path = settings.TTS_CONFIG.get("REFERENCE_WAV_PATH", os.path.abspath(os.path.join(settings.BASE_DIR, 'files', 'audio.wav')))
             speaker = settings.TTS_CONFIG.get("SPEAKER", "Aaron Dreschner")
             language = settings.TTS_CONFIG.get("LANGUAGE", "ru")
 

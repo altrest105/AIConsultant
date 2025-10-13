@@ -11,7 +11,7 @@ class SttConfig(AppConfig):
 
     def ready(self):
         try:
-            logger.info("🔄 Инициализация Whisper модели при запуске Django...")
+            logger.info("⌛ Инициализация Whisper модели при запуске Django...")
             get_model()
             logger.info("✅ Whisper модель инициализирована при старте Django.")
         except Exception as e:

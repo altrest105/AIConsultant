@@ -47,7 +47,7 @@ LOGGING = {
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Hugging Face Cache
-new_cache_dir = BASE_DIR / 'hf_cache'
+new_cache_dir = BASE_DIR / 'files' / 'hf_cache'
 new_cache_dir.mkdir(parents=True, exist_ok=True) 
 os.environ['HF_HOME'] = str(new_cache_dir)
 os.environ['TRANSFORMERS_CACHE'] = str(new_cache_dir / "models")
@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Local apps
+    'qa',
     'stt',
     'tts',
 ]
@@ -219,8 +220,27 @@ STT_CONFIG = {
 TTS_CONFIG = {
     "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2", # tts_models/ru/ljspeech/tacotron2-DDC
 
-    "REFERENCE_WAV_PATH": BASE_DIR / 'docs' / 'audio.wav',
+    "REFERENCE_WAV_PATH": BASE_DIR / 'files' / 'audio.wav',
 
     "SPEAKER": "Aaron Dreschner",
     "LANGUAGE": "ru",
+}
+
+# QA config
+QA_CONFIG = {
+    "QA_DOCX": BASE_DIR / 'files' / 'docs',
+
+    "K_VEC": 40,
+    "K_BM25": 40,
+    "ALPHA": 0.5,
+    "TOP_N_RERANKER": 10,
+    "CONFIDENCE_THRESHOLD": 0.55,
+
+    "EMBEDDING_MODEL_NAME": "BAAI/bge-m3",
+
+    "RERANKER_MODEL_NAME": "BAAI/bge-reranker-v2-m3",
+    "RERANKER_MAX_LENGTH": 512,
+
+    "QDRANT_NAME": "transconsultant_kb",
+    "QDRANT_PATH": BASE_DIR / 'files' / 'qdrant_storage',
 }

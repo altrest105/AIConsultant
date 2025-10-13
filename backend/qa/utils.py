@@ -1,70 +1,42 @@
-import os
 import logging
-from pathlib import Path
-
-new_cache_dir = Path("D:/Programs/HuggingFace_Cache") 
-new_cache_dir.mkdir(parents=True, exist_ok=True) 
-os.environ['HF_HOME'] = str(new_cache_dir)
-os.environ['TRANSFORMERS_CACHE'] = str(new_cache_dir / "models")
-
-from typing import List, Dict, Any, Optional, Tuple
-import torch
 import time
 import numpy as np
-import warnings
-import sys
+import torch
 from tqdm import tqdm
-
+from docx import Document as DocxDocument
 from sentence_transformers import CrossEncoder
 from rank_bm25 import BM25Okapi
-
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Qdrant
 from langchain.schema import Document
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
+from django.conf import settings
 
-from docx import Document as DocxDocument
-from docx.text.paragraph import Paragraph
-
-
-logging.basicConfig(
-    level=logging.INFO, 
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("QA")
-logger.setLevel(logging.INFO)
-warnings.filterwarnings("ignore", category=UserWarning)
+logger = logging.getLogger(__name__)
 
 # Глобальные переменные и конфигурация
-VECTOR_STORE: Optional[Qdrant] = None
-EMBEDDINGS_MODEL: Optional[HuggingFaceEmbeddings] = None
-RERANKER: Optional[CrossEncoder] = None
+VECTOR_STORE = None
+EMBEDDINGS_MODEL = None
+RERANKER = None
 
-BM25_INDEX: Optional[BM25Okapi] = None
-BM25_CORPUS: List[str] = []
-FULL_INDEXED_DOCUMENTS: List[Document] = [] 
+BM25_INDEX = None
+BM25_CORPUS = []
+FULL_INDEXED_DOCUMENTS = []
 
 HEADER_PRIORITY = {'H0': 6.0, 'H1': 5.0, 'H2': 4.0, 'H3': 3.0, 'H4': 2.0, 'T': 1.0, 'L': 1.0}
 
-CONFIG = {
-    "K_VEC": 40,
-    "K_BM25": 40,
-    "ALPHA": 0.5,
-    "TOP_N_RERANKER": 10,
-    "CONFIDENCE_THRESHOLD": 0.55,
-    "EMBEDDING_MODEL_NAME": "BAAI/bge-m3",
-    "RERANKER_MODEL_NAME": "BAAI/bge-reranker-v2-m3",
-}
-
 # Инициализация всех компонентов QA
-def _initialize_embeddings():
+def initialize_embeddings():
     global EMBEDDINGS_MODEL
-    logger.info(f"⏳ Загрузка Embedding: {CONFIG['EMBEDDING_MODEL_NAME']}")
+
+    embedding_model_name = settings.QA_CONFIG.get("EMBEDDING_MODEL_NAME")
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    logger.info(f"🔄 Загрузка Embedding: {embedding_model_name}")
     try:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         EMBEDDINGS_MODEL = HuggingFaceEmbeddings(
-            model_name=CONFIG["EMBEDDING_MODEL_NAME"],
+            model_name=embedding_model_name,
             model_kwargs={'device': device}
         )
         logger.info(f"✅ Embedding модель загружена на: {device}")
@@ -72,14 +44,18 @@ def _initialize_embeddings():
         logger.error(f"❌ Ошибка при загрузке Embedding: {e}")
         EMBEDDINGS_MODEL = None
 
-def _initialize_reranker():
+def initialize_reranker():
     global RERANKER
-    logger.info(f"⏳ Загрузка Reranker: {CONFIG['RERANKER_MODEL_NAME']}")
+
+    reranker_model_name = settings.QA_CONFIG.get("RERANKER_MODEL_NAME", "BAAI/bge-reranker-v2-m3")
+    reranker_max_length = settings.QA_CONFIG.get("RERANKER_MAX_LENGTH", 512)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    logger.info(f"🔄 Загрузка Reranker: {reranker_model_name}")
     try:
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
         RERANKER = CrossEncoder(
-            CONFIG["RERANKER_MODEL_NAME"], 
-            max_length=512,
+            reranker_model_name,
+            max_length=reranker_max_length,
             device=device
         )
         logger.info(f"✅ Reranker загружен на: {device}")
@@ -87,18 +63,20 @@ def _initialize_reranker():
         logger.error(f"❌ Ошибка при загрузке Reranker: {e}")
         RERANKER = None
 
-def _initialize_vector_store():
+def initialize_vector_store():
     global VECTOR_STORE, EMBEDDINGS_MODEL
-    logger.info("⏳ Инициализация Qdrant...")
+    logger.info("🔄 Инициализация Qdrant...")
     if not EMBEDDINGS_MODEL:
         logger.error("❌ EMBEDDINGS_MODEL не инициализирован.")
         return
     try:
-        client = QdrantClient(path="./qdrant_storage") 
-        collection_name = "transconsultant_kb"
+        qdrant_path = settings.QA_CONFIG.get("QDRANT_PATH")
+        qdrant_name = settings.QA_CONFIG.get("QDRANT_NAME")
+        client = QdrantClient(path=qdrant_path)
+
         VECTOR_STORE = Qdrant(
             client=client, 
-            collection_name=collection_name, 
+            collection_name=qdrant_name, 
             embeddings=EMBEDDINGS_MODEL
         )
         logger.info("✅ Qdrant инициализирован.")
@@ -106,20 +84,18 @@ def _initialize_vector_store():
         logger.error(f"❌ Ошибка при инициализации Qdrant: {e}")
         VECTOR_STORE = None
 
-def initialize_qa_system(force_reload: bool = False):
-    """Инициализация всех компонентов системы QA."""
+def initialize_qa_system():
     global EMBEDDINGS_MODEL, RERANKER, VECTOR_STORE
     
-    if force_reload or not (EMBEDDINGS_MODEL and RERANKER and VECTOR_STORE):
-        logger.info(f"🚀 Инициализация системы QA")
-        if not EMBEDDINGS_MODEL: _initialize_embeddings()
-        if not RERANKER: _initialize_reranker()
-        if EMBEDDINGS_MODEL and not VECTOR_STORE: _initialize_vector_store()
+    if not (EMBEDDINGS_MODEL and RERANKER and VECTOR_STORE):
+        logger.info(f"🔄 Инициализация системы QA")
+        if not EMBEDDINGS_MODEL: initialize_embeddings()
+        if not RERANKER: initialize_reranker()
+        if EMBEDDINGS_MODEL and not VECTOR_STORE: initialize_vector_store()
         logger.info("✅ QA система инициализирована.")
 
 # Парсинг DOCX
-def is_bold_paragraph(p: Paragraph) -> bool:
-    """Проверяет, что параграф (или его начало) жирный."""
+def is_bold_paragraph(p):
     text = p.text.strip()
     if not text:
         return False
@@ -130,11 +106,9 @@ def is_bold_paragraph(p: Paragraph) -> bool:
     return False
 
 def equals_indent(indent_emu, target_cm, eps_cm=0.01):
-    """Проверяет, что отступ в EMU примерно равен target_cm с допуском eps_cm."""
     return abs(indent_emu.cm - target_cm) < eps_cm
 
-def _get_chunk_type(paragraph: Paragraph) -> Optional[str]:
-    """Определяет уровень заголовка, списка или обычного текста ('T' через None)."""
+def get_chunk_type(paragraph):
     style_name = paragraph.style.name.lower()
     text = paragraph.text.strip()
     if not text: return None
@@ -171,18 +145,14 @@ def _get_chunk_type(paragraph: Paragraph) -> Optional[str]:
         
     return None
 
-def _parse_document_universal(file_path: Path) -> List[Document]:
-    """
-    Парсинг документа с условным объединением абзацев: 
-    - Текст (T) + Список (L) объединяются, если T заканчивается двоеточием и за ним идет L.
-    """
+def parse_document_universal(file_path):
     logger.info(f"📄 Парсинг файла: {file_path.name}")
     
     if file_path.suffix.lstrip('.') != 'docx':
         logger.warning(f"⚠️ Пропущен файл: {file_path.name}. Поддерживается только DOCX.")
         return []
          
-    documents: List[Document] = []
+    documents = []
     paragraphs_data = [p for p in DocxDocument(file_path).paragraphs if p.text.strip()]
         
     i = 0
@@ -198,7 +168,7 @@ def _parse_document_universal(file_path: Path) -> List[Document]:
         
         current_paragraph_obj = paragraphs_data[i]
         current_paragraph = current_paragraph_obj.text.strip()
-        header_level = _get_chunk_type(current_paragraph_obj)
+        header_level = get_chunk_type(current_paragraph_obj)
         
         # Обновляем заголовки, если текущий абзац — заголовок
         if header_level and header_level != 'L':
@@ -254,7 +224,7 @@ def _parse_document_universal(file_path: Path) -> List[Document]:
 
         # Агрегация текст ":" + Список "L"
         if final_chunk_type == 'T' and ends_with_colon and (j + 1 < paragraphs_data_count):
-            next_paragraph_type = _get_chunk_type(paragraphs_data[j + 1])
+            next_paragraph_type = get_chunk_type(paragraphs_data[j + 1])
             if next_paragraph_type == 'L':
                 should_aggregate = True
         
@@ -270,7 +240,7 @@ def _parse_document_universal(file_path: Path) -> List[Document]:
                     j += 1
                     continue
 
-                next_header_level = _get_chunk_type(next_paragraph_obj) 
+                next_header_level = get_chunk_type(next_paragraph_obj) 
 
                 if next_header_level != 'L':
                     break
@@ -305,39 +275,51 @@ def _parse_document_universal(file_path: Path) -> List[Document]:
         # Передвигаем основной индекс на следующий абзац после объединенных
         i = j + 1 
 
-    logger.info(f"📚 Разделено на {len(documents)} чанков (H0, H1, H2, H3, H4, L, T).")
+    logger.info(f"📚 Разделено на {len(documents)} чанков.")
     return documents
 
 
 # Обновление BM25 индекса
-def update_bm25_index(documents: List[Document]):
-    """Обновляет BM25 индекс и корпус, а также глобальную структуру."""
+def update_bm25_index(documents):
     global BM25_INDEX, BM25_CORPUS, FULL_INDEXED_DOCUMENTS
+
     texts = [doc.page_content for doc in documents]
+
     if not FULL_INDEXED_DOCUMENTS or len(FULL_INDEXED_DOCUMENTS) == 0:
          BM25_CORPUS = []
          FULL_INDEXED_DOCUMENTS = []
+    
     BM25_CORPUS.extend(texts)
     FULL_INDEXED_DOCUMENTS.extend(documents)
     tokenized_corpus = [doc.split(" ") for doc in BM25_CORPUS]
     BM25_INDEX = BM25Okapi(tokenized_corpus)
     logger.info(f"✅ Индексы (Qdrant, BM25) и структура (FULL_INDEXED_DOCUMENTS) обновлены.")
 
-def index_document(file_path: Path):
-    """Индексирует один документ: парсинг, Qdrant и BM25."""
+def chunk_list(data, size):
+    for i in range(0, len(data), size):
+        yield data[i:i + size]
+
+def index_document(file_path):
     global VECTOR_STORE
-    documents = _parse_document_universal(file_path) 
+
+    documents = parse_document_universal(file_path)
+    BATCH_SIZE = 32
+
     if not documents: return
     if VECTOR_STORE:
         try:
-            VECTOR_STORE.add_documents(documents)
+            logger.info(f"🔄 Qdrant: Начинаем загрузку {len(documents)} чанков (батч: {BATCH_SIZE}).")
+            chunk_batches = list(chunk_list(documents, BATCH_SIZE))
+            
+            for batch in tqdm(chunk_batches, desc=f"Qdrant: {file_path.name}", unit="batch"):
+                VECTOR_STORE.add_documents(batch) 
+            
             logger.info(f"✅ Qdrant: Добавлено {len(documents)} чанков.")
         except Exception as e:
-             logger.error(f"❌ Ошибка Qdrant: {e}")
+             logger.error(f"❌ Ошибка Qdrant при добавлении векторов: {e}")
     update_bm25_index(documents)
 
-def index_knowledge_base(folder_path: Path):
-    """Индексирует все поддерживаемые документы (DOCX) из папки с очисткой."""
+def index_knowledge_base(folder_path):
     logger.info(f"📚 Индексация базы знаний")
     if not folder_path.exists():
         logger.error(f"❌ Папка не найдена: {folder_path}")
@@ -345,6 +327,7 @@ def index_knowledge_base(folder_path: Path):
     
     supported_formats = ['.docx'] 
     files_to_index = []
+
     for ext in supported_formats:
         files_to_index.extend([f for f in folder_path.glob(f"*{ext}") if not f.name.startswith('~$')])
     
@@ -368,46 +351,42 @@ def index_knowledge_base(folder_path: Path):
         index_document(file_path)
 
     logger.info(f"✅ Индексация завершена.")
-    logger.info(f"Всего чанков в корпусе: {len(FULL_INDEXED_DOCUMENTS)}")
+    logger.info(f"    Всего чанков в корпусе: {len(FULL_INDEXED_DOCUMENTS)}")
 
 # Ретивер
 class CustomRetriever:
-    """Гибридный ретривер (Vector + BM25) с Reranking."""
-    vector_store: Qdrant
-    reranker: CrossEncoder
-
     def __init__(self, vector_store, reranker):
         self.vector_store = vector_store
         self.reranker = reranker
 
-    def get_relevant_documents(self, query: str) -> List[Tuple[Document, float]]:
-        """Выполняет гибридный поиск и Reranking, возвращая все отсортированные результаты."""
+    def get_relevant_documents(self, query):
         global BM25_INDEX, BM25_CORPUS
         
-        vec_results: List[Tuple[Document, float]] = self.vector_store.similarity_search_with_score(query, k=CONFIG["K_VEC"])
+        vec_results = self.vector_store.similarity_search_with_score(query, k=settings.QA_CONFIG.get("K_VEC", 40))
         bm25_results = []
+
         if BM25_INDEX and BM25_CORPUS:
             tokenized_query = query.split(" ")
             doc_scores = BM25_INDEX.get_scores(tokenized_query)
-            top_n_indices = np.argsort(doc_scores)[::-1][:CONFIG["K_BM25"]]
+            top_n_indices = np.argsort(doc_scores)[::-1][:settings.QA_CONFIG.get("K_BM25", 40)]
             
             for idx in top_n_indices:
                 doc = FULL_INDEXED_DOCUMENTS[idx]
                 bm25_results.append(doc)
 
-        all_docs_map: Dict[str, Dict[str, Any]] = {}
+        all_docs_map = {}
         K_RRF = 60 
         def calculate_rrf_score(rank, k=K_RRF): return 1 / (k + rank)
 
         for rank, (doc, _) in enumerate(vec_results):
             text_hash = hash(doc.page_content)
             if text_hash not in all_docs_map: all_docs_map[text_hash] = {"doc": doc, "rrf_score": 0.0}
-            all_docs_map[text_hash]["rrf_score"] += calculate_rrf_score(rank + 1) * CONFIG["ALPHA"]
+            all_docs_map[text_hash]["rrf_score"] += calculate_rrf_score(rank + 1) * settings.QA_CONFIG.get("ALPHA", 0.5)
 
         for rank, doc in enumerate(bm25_results):
             text_hash = hash(doc.page_content)
             if text_hash not in all_docs_map: all_docs_map[text_hash] = {"doc": doc, "rrf_score": 0.0}
-            all_docs_map[text_hash]["rrf_score"] += calculate_rrf_score(rank + 1) * (1.0 - CONFIG["ALPHA"])
+            all_docs_map[text_hash]["rrf_score"] += calculate_rrf_score(rank + 1) * (1.0 - settings.QA_CONFIG.get("ALPHA", 0.5))
 
         final_candidates = sorted(all_docs_map.values(), key=lambda x: x["rrf_score"], reverse=True)
         rerank_input = [item["doc"] for item in final_candidates[:50]]
@@ -417,20 +396,17 @@ class CustomRetriever:
             scores = self.reranker.predict(pairs)
             probabilities = 1 / (1 + np.exp(-scores))
             
-            scored_documents: List[Tuple[Document, float]] = sorted(
+            scored_documents = sorted(
                 zip(rerank_input, probabilities),
                 key=lambda x: x[1],
                 reverse=True
             )
-            return scored_documents[:CONFIG["TOP_N_RERANKER"]]
+            return scored_documents[:settings.QA_CONFIG.get("TOP_N_RERANKER", 5)]
         
         return []
 
 # Расширение контекста и ответ
-def _expand_context(best_match_doc: Document) -> str:
-    """ 
-    Разворачивает контекст, используя метаданные start_index для надежной привязки.
-    """
+def expand_context(best_match_doc):
     global FULL_INDEXED_DOCUMENTS, HEADER_PRIORITY
     
     chunk_type = best_match_doc.metadata.get('chunk_type')
@@ -475,8 +451,7 @@ def _expand_context(best_match_doc: Document) -> str:
     logger.info(f"✅ Расширение завершено. Собрано {len(expanded_text)} элементов.")
     return "\n\n".join(expanded_text)
 
-def answer_question(question: str) -> Dict[str, Any]:
-    """Основная функция: ищет, применяет приоритет заголовков, расширяет контекст и возвращает ответ."""
+def answer_question(question):
     global VECTOR_STORE, RERANKER, FULL_INDEXED_DOCUMENTS, HEADER_PRIORITY
     
     if not (VECTOR_STORE and RERANKER and FULL_INDEXED_DOCUMENTS):
@@ -486,7 +461,7 @@ def answer_question(question: str) -> Dict[str, Any]:
     start_time = time.time()
     
     retriever = CustomRetriever(vector_store=VECTOR_STORE, reranker=RERANKER)
-    scored_documents: List[Tuple[Document, float]] = retriever.get_relevant_documents(question)
+    scored_documents = retriever.get_relevant_documents(question)
     
     latency = time.time() - start_time
     
@@ -497,11 +472,11 @@ def answer_question(question: str) -> Dict[str, Any]:
     top_score = scored_documents[0][1]
 
     normalized_query = question.strip().lower()
-    priority_match: Optional[Document] = None
+    priority_match = None
     max_priority = -1
     
     # Логика Приоритетного выбора
-    for doc, score in scored_documents[:CONFIG["TOP_N_RERANKER"]]:
+    for doc, score in scored_documents[:settings.QA_CONFIG.get("TOP_N_RERANKER", 5)]:
         doc_type = doc.metadata.get('chunk_type')
         doc_original_text = doc.metadata.get('original_text', '')
         
@@ -517,24 +492,13 @@ def answer_question(question: str) -> Dict[str, Any]:
         top_score = scored_documents[0][1] 
     
     # Расширение контекста
-    final_expanded_text = _expand_context(best_match_doc)
+    final_expanded_text = expand_context(best_match_doc)
     
     
-    if top_score < CONFIG['CONFIDENCE_THRESHOLD']:
-        answer_text = (
-            f"⚠️ Уверенность в релевантности низка ({top_score:.2f})."
-            "Лучшее совпадение:\n" + best_match_doc.metadata.get('original_text', best_match_doc.page_content)
-        )
-    else:
-        answer_type = best_match_doc.metadata.get('chunk_type')
-        answer_label = f"Контекст (раздел {answer_type})" if answer_type != 'T' else "Наиболее релевантный абзац"
-        
-        answer_text = (
-            f"✅ {answer_label}:\n\n"
-            f"{final_expanded_text}"
-        )
+    answer_text = f"{final_expanded_text}"
+    answer_type = best_match_doc.metadata.get('chunk_type')
     
-    logger.info(f"⏱️ Задержка: {latency:.2f}s")
+    logger.info(f"⏱️ Ответ дан за: {latency:.2f}s")
     
     return {
         "answer": answer_text,
