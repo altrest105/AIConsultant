@@ -11,10 +11,46 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import warnings
+import os
+
+warnings.filterwarnings("ignore", category=UserWarning) 
+
+# Основная конфигурация LOGGING
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        },
+    },
+
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+        },
+    },
+
+    'loggers': {
+        '': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    }
+}
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Hugging Face Cache
+new_cache_dir = BASE_DIR / 'hf_cache'
+new_cache_dir.mkdir(parents=True, exist_ok=True) 
+os.environ['HF_HOME'] = str(new_cache_dir)
+os.environ['TRANSFORMERS_CACHE'] = str(new_cache_dir / "models")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -39,12 +75,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third party apps
-    'rest_framework',
     'corsheaders',
 
     # Local apps
     'stt',
-    'tts',
+    #'tts',
 ]
 
 # CORS настройки для разработки
@@ -166,3 +201,16 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
+
+# STT (Speech To Text) config
+STT_CONFIG = {
+    "MODEL_SIZE": "large",
+
+    "GPU_COMPUTE_TYPE": "float16",
+    "CPU_COMPUTE_TYPE": "int8",
+    
+    "LANGUAGE": "ru",
+    "BEAM_SIZE": 5,
+    "VAD_THRESHOLD": 0.5,
+    "VAD_MIN_SPEECH_DURATION_MS": 250,
+}

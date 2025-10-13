@@ -34,3 +34,5 @@ coverage.xml
 
 # Files altrest
 .materials
+tts_test.html
+backend/hf_cache/

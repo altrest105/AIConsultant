@@ -37,6 +37,7 @@ dateparser==1.1.8
 decorator==5.2.1
 Deprecated==1.2.18
 Django==5.2.7
+django-cors-headers==4.9.0
 djangorestframework==3.16.1
 docopt==0.6.2
 effdet==0.4.1
