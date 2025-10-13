@@ -79,7 +79,7 @@ INSTALLED_APPS = [
 
     # Local apps
     'stt',
-    #'tts',
+    'tts',
 ]
 
 # CORS настройки для разработки
@@ -213,4 +213,14 @@ STT_CONFIG = {
     "BEAM_SIZE": 5,
     "VAD_THRESHOLD": 0.5,
     "VAD_MIN_SPEECH_DURATION_MS": 250,
+}
+
+# TTS (Text To Speech) config
+TTS_CONFIG = {
+    "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2", # tts_models/ru/ljspeech/tacotron2-DDC
+
+    "REFERENCE_WAV_PATH": BASE_DIR / 'docs' / 'audio.wav',
+
+    "SPEAKER": "Aaron Dreschner",
+    "LANGUAGE": "ru",
 }

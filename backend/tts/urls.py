@@ -1,8 +1,9 @@
 from django.urls import path
 from . import views
+from .views import TTSStreamSynthesizeView
 
 app_name = 'tts'
 
 urlpatterns = [
-    path('synthesize/', views.text_to_speech_stream_view, name='synthesize'),
+    path('synthesize/', TTSStreamSynthesizeView.as_view(), name='synthesize'),
 ]

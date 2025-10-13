@@ -4,40 +4,29 @@ import io
 import tempfile
 import logging
 import torch
+from django.conf import settings
 from TTS.api import TTS
 from django.conf import settings
 from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
 
-REFERENCE_WAV_PATH = os.path.abspath(os.path.join(settings.BASE_DIR, '..', 'docs', 'audio.wav'))
 TTS_MODEL = None
 
 
-def initialize_model():
-    """Инициализирует глобальную модель TTS.
-    
-    Загружает модель XTTS v2 на доступное устройство (CUDA или CPU).
-    Использует глобальную переменную для кэширования модели.
-    
-    Returns:
-        TTS: Инициализированная модель TTS.
-        
-    Raises:
-        RuntimeError: Если не удалось инициализировать модель TTS.
-        
-    Note:
-        При повторном вызове возвращает уже загруженную модель.
-    """
+def get_model():
     global TTS_MODEL
     
     if TTS_MODEL is not None:
         return TTS_MODEL
     
     try:
-        logger.info("⚙️ Инициализация TTS модели...")
+        logger.info("🔄 Загрузка TTS модели...")
+
+        model_name = settings.TTS_CONFIG.get("MODEL_NAME", "tts_models/multilingual/multi-dataset/xtts_v2")
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        TTS_MODEL = TTS(model_name="tts_models/multilingual/multi-dataset/xtts_v2")
+
+        TTS_MODEL = TTS(model_name=model_name)
         TTS_MODEL.to(device)
         logger.info(f"✅ TTS модель загружена на устройство: {device}")
     except Exception as e:
@@ -48,18 +37,6 @@ def initialize_model():
 
 
 def split_text_into_sentences(text):
-    """Разбивает текст на отдельные предложения и части по запятым.
-    
-    Выполняет двухуровневое разбиение:
-    1. По знакам завершения предложений (.!?)
-    2. По запятым внутри длинных предложений
-    
-    Args:
-        text (str): Исходный текст для разбиения.
-        
-    Returns:
-        list[str]: Список предложений и частей с сохранением пунктуации.
-    """
     # Разбиваем на предложения по точке, восклицательному и вопросительному знакам
     sentences = re.split(r'([.!?]+)', text)
     
@@ -96,22 +73,6 @@ def split_text_into_sentences(text):
 
 
 def normalize_text_for_speech(text):
-    """Нормализует текст для корректного синтеза речи.
-    
-    Выполняет следующие преобразования:
-    - Заменяет сокращения на полные формы
-    - Преобразует римские числа в арабские
-    - Форматирует даты, телефоны, email
-    - Обрабатывает большие числа и десятичные дроби
-    - Нормализует пунктуацию
-    
-    Args:
-        text (str): Исходный текст для нормализации.
-        
-    Returns:
-        str: Нормализованный текст, готовый для синтеза речи.
-    """
-    
     # Словарь базовых сокращений (только самые необходимые)
     abbreviations = {
         'гг.': 'годов',
@@ -130,14 +91,6 @@ def normalize_text_for_speech(text):
     }
 
     def roman_to_arabic(match):
-        """Преобразует римские числа в арабские.
-        
-        Args:
-            match (re.Match): Объект совпадения с римским числом.
-            
-        Returns:
-            str: Арабское число или исходное значение, если преобразование невозможно.
-        """
         roman = match.group(0).upper()
         
         # Игнорируем пустые строки
@@ -177,14 +130,6 @@ def normalize_text_for_speech(text):
     phone_storage = []
     
     def format_phone(match):
-        """Форматирует телефонный номер для произношения.
-        
-        Args:
-            match (re.Match): Объект совпадения с телефонным номером.
-            
-        Returns:
-            str: Placeholder для защиты от дальнейшей обработки.
-        """
         phone = match.group(0)
         # Убираем все символы кроме цифр и плюса
         cleaned = re.sub(r'[^\d+]', '', phone)
@@ -256,28 +201,12 @@ def normalize_text_for_speech(text):
     }
     
     def day_to_ordinal(day_str):
-        """Преобразует день месяца в порядковое числительное.
-        
-        Args:
-            day_str (str): День месяца (1-31).
-            
-        Returns:
-            str: Порядковое числительное в родительном падеже.
-        """
         day = int(day_str)
         
         formatted_day = f"{day:02d}"
         return ordinal_days.get(formatted_day, day_str)
     
     def year_to_words(year_str):
-        """Преобразует год в словесную форму для дат.
-        
-        Args:
-            year_str (str): Год в формате ГГГГ.
-            
-        Returns:
-            str: Год прописью в родительном падеже.
-        """
         year = int(year_str)
         
         if year < 1000 or year > 9999:
@@ -338,14 +267,6 @@ def normalize_text_for_speech(text):
         return ' '.join(result)
     
     def format_date(match):
-        """Форматирует дату в полную словесную форму.
-        
-        Args:
-            match (re.Match): Объект совпадения с датой ДД.ММ.ГГГГ.
-            
-        Returns:
-            str: Дата прописью с запятыми.
-        """
         day, month, year = match.groups()
         
         day_word = day_to_ordinal(day)
@@ -358,14 +279,6 @@ def normalize_text_for_speech(text):
     text = re.sub(r'(\d{1,2})\.(\d{1,2})\.(\d{4})\b', format_date, text)
     
     def format_short_date(match):
-        """Форматирует короткую дату (ДД.ММ.ГГ) в полную словесную форму.
-        
-        Args:
-            match (re.Match): Объект совпадения с датой ДД.ММ.ГГ.
-            
-        Returns:
-            str: Дата прописью с запятыми.
-        """
         day, month, year = match.groups()
         full_year = f"20{year}" if int(year) < 50 else f"19{year}"
         
@@ -378,14 +291,6 @@ def normalize_text_for_speech(text):
     text = re.sub(r'(\d{1,2})\.(\d{1,2})\.(\d{2})(?!\d)', format_short_date, text)
     
     def format_email(match):
-        """Форматирует email для произношения.
-        
-        Args:
-            match (re.Match): Объект совпадения с email.
-            
-        Returns:
-            str: Email с заменой @ на "собака" и . на "точка".
-        """
         email = match.group(0)
         email = email.replace('@', ' собака ')
         email = email.replace('.', ' точка ')
@@ -402,14 +307,6 @@ def normalize_text_for_speech(text):
     long_number_storage = []
     
     def format_long_number(match):
-        """Разбивает длинные числа на группы для удобного произношения.
-        
-        Args:
-            match (re.Match): Объект совпадения с длинным числом (7+ цифр).
-            
-        Returns:
-            str: Placeholder для защиты от дальнейшей обработки.
-        """
         number_str = match.group(0)
         length = len(number_str)
         
@@ -439,14 +336,6 @@ def normalize_text_for_speech(text):
     text = re.sub(r'\b\d{7,}\b', format_long_number, text)
     
     def format_large_number(match):
-        """Преобразует большие числа с пробелами в словесную форму.
-        
-        Args:
-            match (re.Match): Объект совпадения с большим числом.
-            
-        Returns:
-            str: Число прописью (миллиарды/миллионы/тысячи) или исходное значение.
-        """
         number_str = match.group(0).replace(' ', '')
         
         if len(number_str) > 15:
@@ -485,14 +374,6 @@ def normalize_text_for_speech(text):
     text = re.sub(r'\d+(?:\s+\d+)+', format_large_number, text)
     
     def format_decimal(match):
-        """Преобразует десятичные дроби в словесную форму.
-        
-        Args:
-            match (re.Match): Объект совпадения с десятичной дробью.
-            
-        Returns:
-            str: Дробь прописью.
-        """
         whole = match.group(1)
         fractional = match.group(2)
         
@@ -571,14 +452,6 @@ def normalize_text_for_speech(text):
         text = text.replace(phone_placeholder.format(idx), phone)
     
     def replace_leading_zeros(match):
-        """Заменяет ведущие нули в числах на слово "ноль".
-        
-        Args:
-            match (re.Match): Объект совпадения с числом, начинающимся с нуля.
-            
-        Returns:
-            str: Число с заменой каждого ведущего нуля на "ноль".
-        """
         number = match.group(0)
         if number.startswith('0'):
             result = []
@@ -601,28 +474,14 @@ def normalize_text_for_speech(text):
 
 
 def text_to_speech_streaming(text):
-    """Генерирует речь потоково по предложениям.
-    
-    Разбивает текст на предложения и генерирует аудио для каждого,
-    возвращая результаты через генератор для потоковой передачи.
-    
-    Args:
-        text (str): Текст для синтеза речи.
-    
-    Yields:
-        bytes: WAV-данные для каждого предложения.
-        
-    Raises:
-        ValueError: Если текст пустой.
-    """
     if not text or not text.strip():
         raise ValueError("Текст не может быть пустым")
     
     # Нормализация текста
     normalized_text = normalize_text_for_speech(text)
     
-    # Инициализация модели
-    model = initialize_model()
+    # Получение модели
+    model = get_model()
     
     # Разбиваем на предложения
     sentences = split_text_into_sentences(normalized_text)
@@ -638,19 +497,23 @@ def text_to_speech_streaming(text):
         
         try:
             # Генерируем аудио
-            if not os.path.exists(REFERENCE_WAV_PATH):
+            reference_wav_path = settings.TTS_CONFIG.get("REFERENCE_WAV_PATH", os.path.abspath(os.path.join(settings.BASE_DIR, 'docs', 'audio.wav')))
+            speaker = settings.TTS_CONFIG.get("SPEAKER", "Aaron Dreschner")
+            language = settings.TTS_CONFIG.get("LANGUAGE", "ru")
+
+            if not os.path.exists(reference_wav_path):
                 model.tts_to_file(
                     text=sentence,
                     file_path=temp_path,
-                    speaker="Aaron Dreschner",
-                    language="ru",
+                    speaker=speaker,
+                    language=language,
                 )
             else:
                 model.tts_to_file(
                     text=sentence,
                     file_path=temp_path,
-                    speaker_wav=REFERENCE_WAV_PATH,
-                    language="ru",
+                    speaker_wav=reference_wav_path,
+                    language=language,
                 )
             
             # Читаем аудио
@@ -671,132 +534,3 @@ def text_to_speech_streaming(text):
                     os.remove(temp_path)
             except Exception as e:
                 logger.warning(f"Не удалось удалить временный файл: {e}")
-
-
-def text_to_speech_combined(text):
-    """Конвертирует текст в единый аудиофайл с речью.
-    
-    Разбивает текст на предложения, генерирует аудио для каждого
-    и объединяет результаты в один WAV-файл с паузами между предложениями.
-    
-    Args:
-        text (str): Текст для синтеза речи.
-    
-    Returns:
-        str: Путь к сгенерированному временному WAV-файлу.
-        
-    Raises:
-        ValueError: Если текст пустой.
-        
-    Warning:
-        Вызывающий код должен удалить возвращаемый файл после использования.
-    """
-    if not text or not text.strip():
-        raise ValueError("Текст не может быть пустым")
-    
-    # Нормализация текста
-    normalized_text = normalize_text_for_speech(text)
-    
-    # Инициализация модели
-    model = initialize_model()
-    
-    # Разбиваем на предложения
-    sentences = split_text_into_sentences(normalized_text)
-    
-    # Если одно предложение, генерируем сразу
-    if len(sentences) == 1:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
-            output_path = tmp.name
-        
-        try:
-            logger.info(f"Генерация речи: {sentences[0][:50]}...")
-            
-            if not os.path.exists(REFERENCE_WAV_PATH):
-                model.tts_to_file(
-                    text=sentences[0],
-                    file_path=output_path,
-                    speaker="Aaron Dreschner",
-                    language="ru",
-                    split_sentences=False,
-                )
-            else:
-                model.tts_to_file(
-                    text=sentences[0],
-                    file_path=output_path,
-                    speaker_wav=REFERENCE_WAV_PATH,
-                    language="ru",
-                    split_sentences=False,
-                )
-            
-            audio = AudioSegment.from_wav(output_path)
-            audio.export(output_path, format="wav")
-            
-            logger.info(f"✅ Речь успешно сгенерирована")
-            return output_path
-            
-        except Exception as e:
-            if os.path.exists(output_path):
-                os.remove(output_path)
-            logger.error(f"Ошибка генерации речи: {e}")
-            raise
-    
-    # Генерируем аудио для каждого предложения
-    temp_files = []
-    
-    try:
-        for i, sentence in enumerate(sentences):
-            if not sentence.strip():
-                continue
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
-                temp_path = tmp.name
-            
-            logger.info(f"Генерация предложения {i+1}/{len(sentences)}: {sentence[:50]}...")
-            
-            if not os.path.exists(REFERENCE_WAV_PATH):
-                model.tts_to_file(
-                    text=sentence,
-                    file_path=temp_path,
-                    speaker="Aaron Dreschner",
-                    language="ru",
-                )
-            else:
-                model.tts_to_file(
-                    text=sentence,
-                    file_path=temp_path,
-                    speaker_wav=REFERENCE_WAV_PATH,
-                    language="ru",
-                )
-            
-            temp_files.append(temp_path)
-            logger.info(f"✅ Предложение {i+1} сгенерировано")
-        
-        # Объединяем все аудиофайлы
-        logger.info("Объединение аудиофрагментов...")
-        combined = AudioSegment.empty()
-        
-        for i, temp_file in enumerate(temp_files):
-            audio = AudioSegment.from_wav(temp_file)
-            
-            combined += audio
-            
-            if i < len(temp_files) - 1:
-                combined += AudioSegment.silent(duration=50)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp:
-            output_path = tmp.name
-        
-        combined.export(output_path, format="wav")
-        
-        return output_path
-        
-    except Exception as e:
-        logger.error(f"Ошибка генерации речи: {e}")
-        raise
-    finally:
-        for temp_file in temp_files:
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-            except Exception as e:
-                logger.warning(f"Не удалось удалить временный файл {temp_file}: {e}")

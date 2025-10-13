@@ -32,7 +32,7 @@ def get_model():
             WHISPER_MODEL = WhisperModel(model_size, device="cpu", compute_type=cpu_compute_type)
             logger.info("✅ Whisper модель загружена на CPU")
         except Exception as cpu_error:
-            logger.error(f"❌ Ошибка инициализации модели: {cpu_error}")
+            logger.error(f"❌ Ошибка инициализации Whisper модели: {cpu_error}")
             raise RuntimeError("Не удалось инициализировать модель")
     
     return WHISPER_MODEL
