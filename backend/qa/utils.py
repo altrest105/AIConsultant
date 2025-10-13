@@ -303,7 +303,7 @@ def index_document(file_path):
     global VECTOR_STORE
 
     documents = parse_document_universal(file_path)
-    BATCH_SIZE = 32
+    BATCH_SIZE = settings.QA_CONFIG.get("QDRANT_BATCH_SIZE", 32)
 
     if not documents: return
     if VECTOR_STORE:

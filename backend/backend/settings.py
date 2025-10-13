@@ -78,9 +78,9 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Local apps
-    'qa',
     'stt',
     'tts',
+    'qa',
 ]
 
 # CORS настройки для разработки
@@ -205,6 +205,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 # STT (Speech To Text) config
 STT_CONFIG = {
+    "STT_IS_ACTIVE": False,
     "MODEL_SIZE": "large",
 
     "GPU_COMPUTE_TYPE": "float16",
@@ -218,7 +219,8 @@ STT_CONFIG = {
 
 # TTS (Text To Speech) config
 TTS_CONFIG = {
-    "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2", # tts_models/ru/ljspeech/tacotron2-DDC
+    "TTS_IS_ACTIVE": False,
+    "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2",
 
     "REFERENCE_WAV_PATH": BASE_DIR / 'files' / 'audio.wav',
 
@@ -243,4 +245,5 @@ QA_CONFIG = {
 
     "QDRANT_NAME": "transconsultant_kb",
     "QDRANT_PATH": BASE_DIR / 'files' / 'qdrant_storage',
+    "QDRANT_BATCH_SIZE": 32,
 }

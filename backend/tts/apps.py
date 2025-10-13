@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.conf import settings
 from .utils import get_model
 import logging
 
@@ -11,8 +12,9 @@ class TtsConfig(AppConfig):
 
     def ready(self):
         try:
-            logger.info("⌛ Инициализация TTS модели при запуске Django...")
-            get_model()
-            logger.info("✅ TTS модель инициализирована при старте Django.")
+            if settings.TTS_CONFIG.get("TTS_IS_ACTIVE", True):
+                logger.info("⌛ Инициализация TTS модели при запуске Django...")
+                get_model()
+                logger.info("✅ TTS модель инициализирована при старте Django.")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации TTS модели при старте: {e}")

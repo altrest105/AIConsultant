@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.conf import settings
 from .utils import get_model
 import logging
 
@@ -11,8 +12,9 @@ class SttConfig(AppConfig):
 
     def ready(self):
         try:
-            logger.info("⌛ Инициализация Whisper модели при запуске Django...")
-            get_model()
-            logger.info("✅ Whisper модель инициализирована при старте Django.")
+            if settings.STT_CONFIG.get("STT_IS_ACTIVE", True):
+                logger.info("⌛ Инициализация Whisper модели при запуске Django...")
+                get_model()
+                logger.info("✅ Whisper модель инициализирована при старте Django.")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации Whisper модели при старте: {e}")
