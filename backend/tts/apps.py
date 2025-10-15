@@ -16,5 +16,7 @@ class TtsConfig(AppConfig):
                 logger.info("⌛ Инициализация TTS модели при запуске Django...")
                 get_model()
                 logger.info("✅ TTS модель инициализирована при старте Django.")
+            else:
+                logger.info("ℹ️ TTS отключен в настройках, пропуск инициализации модели.")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации TTS модели при старте: {e}")
