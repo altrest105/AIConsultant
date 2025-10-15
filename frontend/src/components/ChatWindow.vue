@@ -4,7 +4,6 @@ import { defineProps, ref, watch, nextTick } from 'vue';
 // КОНФИГУРАЦИЯ API
 const API_BASE_URL = 'http://localhost:8000/api/'; 
 const TTS_ENDPOINT = 'tts/synthesize/';
-
 // СОСТОЯНИЕ TTS (Потоковое)
 const audioQueue = ref([]);
 const isTtsPlaying = ref(false);
@@ -19,12 +18,40 @@ const props = defineProps({
     required: true,
   },
 });
-
 const chatContainer = ref(null);
 
 function getCurrentTime() {
   const now = new Date();
   return now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+// НОВАЯ ФУНКЦИЯ: Преобразование кастомных тегов в HTML
+function formatBotText(rawText) {
+    if (!rawText) return '';
+
+    let htmlText = rawText;
+
+    // 1. Замена заголовков H0, H1, H3, H4 на h3, h4, h5, h6
+    // H0 -> h3 (Самый главный заголовок)
+    htmlText = htmlText.replace(/<H0>(.*?)<\/H0>/gs, '<h3>$1</h3>');
+    // H1 -> h4 (Основной раздел)
+    htmlText = htmlText.replace(/<H1>(.*?)<\/H1>/gs, '<h4>$1</h4>');
+    // H3 -> h5 (Подраздел)
+    htmlText = htmlText.replace(/<H3>(.*?)<\/H3>/gs, '<h5>$1</h5>');
+    // H4 -> h6 (Детализация)
+    htmlText = htmlText.replace(/<H4>(.*?)<\/H4>/gs, '<h6>$1</h6>');
+
+    // 2. Замена элементов списка L на <li>
+    htmlText = htmlText.replace(/<L>(.*?)<\/L>/gs, '<li class="formatted-list-item">$1</li>');
+
+    // 3. Оборачивание всех последовательностей <li> в один <ul>
+    // Регулярное выражение ищет одну или более последовательных <li> и оборачивает их в <ul class="formatted-list">
+    htmlText = htmlText.replace(/(\s*<li.*?<\/li>\s*)+/gs, '<ul class="formatted-list">$&</ul>');
+    
+    // 4. Удаление лишних </ul><ul...> которые могли появиться в результате предыдущей замены
+    htmlText = htmlText.replace(/<\/ul>\s*<ul class="formatted-list">/gs, '');
+
+    return htmlText.trim();
 }
 
 watch(
@@ -41,10 +68,9 @@ watch(
   },
   { deep: true }
 );
-
 // TTS ФУНКЦИОНАЛ
 function findRIFF(buffer) {
-    const riff = [0x52, 0x49, 0x46, 0x46];
+    const riff = [0x52, 0x49, 0x46, 0x44];
     for (let i = 0; i < buffer.length - 3; i++) {
         if (buffer[i] === riff[0] && 
             buffer[i + 1] === riff[1] && 
@@ -70,11 +96,10 @@ function playNextAudio() {
     audioEl.onended = () => {
         URL.revokeObjectURL(url);
         isTtsPlaying.value = false;
-        
         if (isTtsStreaming || audioQueue.value.length > 0) {
              playNextAudio();
         } else {
-             stopAudioPlayback(true); 
+             stopAudioPlayback(true);
         }
     };
 
@@ -93,12 +118,11 @@ function playNextAudio() {
 }
 
 function stopAudioPlayback(resetId = true) {
-    isTtsStreaming = false; 
-
+    isTtsStreaming = false;
     if (audioEl) {
          audioEl.pause();
          audioEl.src = ''; 
-         audioEl.onended = null; 
+         audioEl.onended = null;
          audioEl.onerror = null;
     }
 
@@ -111,7 +135,6 @@ function stopAudioPlayback(resetId = true) {
 
 async function toggleTtsPlayback(msgId, textToSpeak) {
     if (!textToSpeak) return;
-
     if (isTtsStreaming || isTtsPlaying.value) {
         if (currentPlayingMessageId.value === msgId) {
             stopAudioPlayback(true);
@@ -133,7 +156,6 @@ async function toggleTtsPlayback(msgId, textToSpeak) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: textToSpeak }),
         });
-
         if (!response.ok) {
             throw new Error(`Ошибка HTTP: ${response.status}`);
         }
@@ -154,21 +176,17 @@ async function toggleTtsPlayback(msgId, textToSpeak) {
             newBuffer.set(buffer);
             newBuffer.set(value, buffer.length);
             buffer = newBuffer;
-
             while (true) {
                 const riffIndex = findRIFF(buffer);
                 if (riffIndex === -1) break; 
-                if (buffer.length < riffIndex + 8) break; 
-
+                if (buffer.length < riffIndex + 8) break;
                 const fileSize = new DataView(buffer.buffer, buffer.byteOffset + riffIndex + 4, 4).getUint32(0, true) + 8;
-                
                 if (buffer.length < riffIndex + fileSize) break; 
 
                 const wavData = buffer.slice(riffIndex, riffIndex + fileSize);
                 const blob = new Blob([wavData], { type: 'audio/wav' });
 
                 audioQueue.value.push({ blob, index: chunkIndex });
-                
                 if (!isTtsPlaying.value) {
                     playNextAudio();
                 }
@@ -203,12 +221,13 @@ async function toggleTtsPlayback(msgId, textToSpeak) {
           <div class="avatar-mini" :class="msg.sender">
             <svg v-if="msg.sender === 'bot'" class="avatar-icon" viewBox="0 0 
 24 24" fill="none" stroke="currentColor">
-              <rect x="5" y="11" width="14" height="10" rx="2" stroke-width="2"/>
+               <rect x="5" y="11" width="14" height="10" rx="2" stroke-width="2"/>
               <circle cx="9" cy="15" r="1" fill="currentColor"/>
               <circle cx="15" cy="15" r="1" fill="currentColor"/>
               <path d="M9 19h6" stroke-linecap="round" stroke-width="2"/>
               <path d="M12 11V8" stroke-linecap="round" stroke-width="2"/>
-             <circle cx="12" cy="6" r="2" stroke-width="2"/>
+             <circle cx="12" cy="6" r="2" 
+stroke-width="2"/>
             </svg>
             <svg v-else class="avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <circle cx="12" cy="8" r="4" stroke-width="2"/>
@@ -222,18 +241,21 @@ async function toggleTtsPlayback(msgId, textToSpeak) {
         </div>
         
         <div class="message-bubble" :class="msg.type || 'text'">
-          <div class="bubble-content">{{ msg.text }}</div>
+          <div 
+             class="bubble-content"
+             v-html="msg.sender === 'bot' ? formatBotText(msg.text) : msg.text"
+          ></div>
           <div class="bubble-tail"></div>
         </div>
         
         <button 
-          v-if="msg.sender === 'bot' && msg.text" 
+           v-if="msg.sender === 'bot' && msg.text" 
           @click="toggleTtsPlayback(msg.id, msg.text)" 
           :class="['tts-button', { 'tts-playing': isTtsPlaying && currentPlayingMessageId === msg.id }]"
           :title="isTtsPlaying && currentPlayingMessageId === msg.id ? 'Остановить озвучку' : 'Озвучить сообщение'"
         >
           <svg v-if="isTtsPlaying && currentPlayingMessageId === msg.id" class="tts-icon tts-stop-icon" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
+             <rect x="6" y="6" width="12" height="12" rx="2" ry="2"></rect>
           </svg>
           <svg v-else class="tts-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 
@@ -544,6 +566,74 @@ async function toggleTtsPlayback(msgId, textToSpeak) {
     fill: currentColor;
     stroke: none;
 }
+
+/* ------------------------------------------------ */
+/* СТИЛИ ДЛЯ ФОРМАТИРОВАНИЯ БОТА (H3, H4, H5, H6, UL, LI) */
+/* ------------------------------------------------ */
+
+.bubble-content h3 { /* H0 */
+    font-size: 1.2em; /* Примерно 18px */
+    font-weight: 700;
+    margin-top: 10px;
+    margin-bottom: 8px;
+    line-height: 1.3;
+    color: var(--transneft-white);
+}
+
+.bubble-content h4 { /* H1 */
+    font-size: 1em; /* Примерно 15px, такой же как основной текст */
+    font-weight: 600;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    line-height: 1.4;
+    color: var(--transneft-white);
+}
+
+.bubble-content h5 { /* H3 */
+    font-size: 1em; /* Размер основного текста */
+    font-weight: 500;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.bubble-content h6 { /* H4 */
+    font-size: 0.95em; /* Чуть меньше */
+    font-weight: 400; /* Обычный шрифт */
+    margin-top: 10px;
+    margin-bottom: 2px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.7); /* Более приглушенный */
+}
+
+.bubble-content .formatted-list {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+.bubble-content .formatted-list-item {
+    position: relative;
+    padding-left: 18px;
+    margin-bottom: 6px;
+    line-height: 1.4;
+    text-indent: 0;
+}
+
+.bubble-content .formatted-list-item::before {
+    content: '—'; 
+    color: var(--transneft-white);
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+    font-size: 1em;
+}
+
+/* ------------------------------------------------ */
+/* КОНЕЦ СТИЛЕЙ ДЛЯ ФОРМАТИРОВАНИЯ */
+/* ------------------------------------------------ */
 
 .message-bubble.error .bubble-content {
   display: flex;
