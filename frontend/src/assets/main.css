@@ -1,8 +1,3 @@
-/* ========================================
-   ГЛОБАЛЬНЫЕ СТИЛИ ТРАНСНЕФТЬ AI
-   ======================================== */
-
-/* Корпоративные цвета Транснефти */
 :root {
   --transneft-blue: #004B93;
   --transneft-light-blue: #0066CC;
@@ -13,7 +8,6 @@
   --transneft-medium: #002B5C;
   --transneft-white: #FFFFFF;
   
-  /* Прозрачности */
   --bg-overlay-dark: rgba(0, 27, 56, 0.95);
   --bg-overlay-medium: rgba(0, 43, 92, 0.9);
   --bg-glass: rgba(0, 75, 147, 0.3);
@@ -21,29 +15,22 @@
   --border-blue-hover: rgba(0, 102, 204, 0.6);
   --border-red: rgba(227, 30, 36, 0.4);
   
-  /* Тени */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
   --shadow-md: 0 4px 15px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.3);
   --shadow-blue: 0 4px 20px rgba(0, 75, 147, 0.5);
   --shadow-red: 0 4px 20px rgba(227, 30, 36, 0.5);
   
-  /* Радиусы */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
   --radius-2xl: 24px;
   
-  /* Transitions */
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
   --transition-slow: 0.5s ease;
 }
-
-/* ========================================
-   БАЗОВЫЕ СТИЛИ
-   ======================================== */
 
 * {
   margin: 0;
@@ -66,10 +53,6 @@ body {
   overflow-x: hidden;
   line-height: 1.6;
 }
-
-/* ========================================
-   ТИПОГРАФИКА
-   ======================================== */
 
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
@@ -97,10 +80,6 @@ a {
 a:hover {
   color: var(--transneft-white);
 }
-
-/* ========================================
-   КНОПКИ (ОБЩИЕ СТИЛИ)
-   ======================================== */
 
 button {
   font-family: inherit;
@@ -149,10 +128,6 @@ button:disabled {
   box-shadow: 0 6px 25px rgba(0, 102, 204, 0.6);
 }
 
-/* ========================================
-   ФОРМЫ (ОБЩИЕ СТИЛИ)
-   ======================================== */
-
 input, textarea, select {
   font-family: inherit;
   font-size: 15px;
@@ -180,10 +155,6 @@ input:disabled, textarea:disabled, select:disabled {
   cursor: not-allowed;
 }
 
-/* ========================================
-   СКРОЛЛБАР (ОБЩИЙ СТИЛЬ)
-   ======================================== */
-
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -204,15 +175,10 @@ input:disabled, textarea:disabled, select:disabled {
   background: rgba(0, 102, 204, 0.5);
 }
 
-/* Firefox scrollbar */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 102, 204, 0.3) rgba(0, 75, 147, 0.1);
 }
-
-/* ========================================
-   УТИЛИТЫ
-   ======================================== */
 
 .text-gradient {
   background: linear-gradient(135deg, var(--transneft-white), var(--transneft-light-blue));
@@ -242,10 +208,6 @@ input:disabled, textarea:disabled, select:disabled {
   box-shadow: var(--shadow-lg);
   border-color: var(--border-red);
 }
-
-/* ========================================
-   АНИМАЦИИ
-   ======================================== */
 
 @keyframes fadeIn {
   from {
@@ -359,10 +321,6 @@ input:disabled, textarea:disabled, select:disabled {
   animation: float 3s ease-in-out infinite;
 }
 
-/* ========================================
-   RESPONSIVE УТИЛИТЫ
-   ======================================== */
-
 .container {
   width: 100%;
   max-width: 1400px;
@@ -402,10 +360,6 @@ input:disabled, textarea:disabled, select:disabled {
   grid-template-columns: repeat(4, 1fr);
 }
 
-/* ========================================
-   МЕДИА-ЗАПРОСЫ
-   ======================================== */
-
 @media (max-width: 1200px) {
   h1 { font-size: 40px; }
   h2 { font-size: 32px; }
@@ -441,10 +395,6 @@ input:disabled, textarea:disabled, select:disabled {
   }
 }
 
-/* ========================================
-   PRINT СТИЛИ
-   ======================================== */
-
 @media print {
   body {
     background: white;
@@ -459,10 +409,6 @@ input:disabled, textarea:disabled, select:disabled {
   }
 }
 
-/* ========================================
-   ACCESSIBILITY
-   ======================================== */
-
 .sr-only {
   position: absolute;
   width: 1px;
@@ -475,13 +421,11 @@ input:disabled, textarea:disabled, select:disabled {
   border-width: 0;
 }
 
-/* Focus styles */
 *:focus-visible {
   outline: 2px solid var(--transneft-light-blue);
   outline-offset: 2px;
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

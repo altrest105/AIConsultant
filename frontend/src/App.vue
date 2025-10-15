@@ -147,15 +147,6 @@ body {
   left: -200px;
 }
 
-.orb-2 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, #E31E24, transparent);
-  bottom: -150px;
-  right: -150px;
-  animation-delay: -7s;
-}
-
 @keyframes orbFloat {
   0%, 100% {
     transform: translate(0, 0) scale(1);
@@ -211,18 +202,6 @@ body {
     0 0 0 2px rgba(227, 30, 36, 0.2);
   animation: logoFloat 3s ease-in-out infinite;
   position: relative;
-}
-
-.logo-icon::after {
-  content: '';
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
-  background: #E31E24;
-  border-radius: 50%;
-  box-shadow: 0 0 10px #E31E24;
 }
 
 .logo-svg {

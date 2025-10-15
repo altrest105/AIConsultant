@@ -567,12 +567,8 @@ stroke-width="2"/>
     stroke: none;
 }
 
-/* ------------------------------------------------ */
-/* СТИЛИ ДЛЯ ФОРМАТИРОВАНИЯ БОТА (H3, H4, H5, H6, UL, LI) */
-/* ------------------------------------------------ */
-
-.bubble-content h3 { /* H0 */
-    font-size: 1.2em; /* Примерно 18px */
+.bubble-content h3 {
+    font-size: 1.2em;
     font-weight: 700;
     margin-top: 10px;
     margin-bottom: 8px;
@@ -580,8 +576,8 @@ stroke-width="2"/>
     color: var(--transneft-white);
 }
 
-.bubble-content h4 { /* H1 */
-    font-size: 1em; /* Примерно 15px, такой же как основной текст */
+.bubble-content h4 {
+    font-size: 1em;
     font-weight: 600;
     margin-top: 14px;
     margin-bottom: 6px;
@@ -589,8 +585,8 @@ stroke-width="2"/>
     color: var(--transneft-white);
 }
 
-.bubble-content h5 { /* H3 */
-    font-size: 1em; /* Размер основного текста */
+.bubble-content h5 {
+    font-size: 1em;
     font-weight: 500;
     margin-top: 12px;
     margin-bottom: 4px;
@@ -598,13 +594,13 @@ stroke-width="2"/>
     color: rgba(255, 255, 255, 0.9);
 }
 
-.bubble-content h6 { /* H4 */
-    font-size: 0.95em; /* Чуть меньше */
-    font-weight: 400; /* Обычный шрифт */
+.bubble-content h6 {
+    font-size: 0.95em;
+    font-weight: 400;
     margin-top: 10px;
     margin-bottom: 2px;
     line-height: 1.4;
-    color: rgba(255, 255, 255, 0.7); /* Более приглушенный */
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .bubble-content .formatted-list {
@@ -630,10 +626,6 @@ stroke-width="2"/>
     font-weight: bold;
     font-size: 1em;
 }
-
-/* ------------------------------------------------ */
-/* КОНЕЦ СТИЛЕЙ ДЛЯ ФОРМАТИРОВАНИЯ */
-/* ------------------------------------------------ */
 
 .message-bubble.error .bubble-content {
   display: flex;
