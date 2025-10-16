@@ -466,7 +466,7 @@ def answer_question(question):
     latency = time.time() - start_time
     
     if not scored_documents:
-        return {"answer": "В базе знаний не найдено информации, релевантной вашему запросу.", "source_documents": [], "confidence": 0.0, "latency_sec": latency}
+        return {"answer": "К сожалению, в базе знаний не найдено информации, релевантной вашему запросу. Пожалуйста, попробуйте переформулировать вопрос.", "source_documents": [], "confidence": 0.0, "latency_sec": latency}
 
     best_match_doc = scored_documents[0][0]
     top_score = scored_documents[0][1]

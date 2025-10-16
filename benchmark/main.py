@@ -562,25 +562,10 @@ def create_benchmark_from_qdrant(output_file="benchmark_dataset.json"):
         entry = {
             "id": idx,
             "context": doc.page_content,
-            "chunk_type": doc.metadata.get('chunk_type'),
-            "source": doc.metadata.get('source'),
-            "h0_header": doc.metadata.get('h0_header', ''),
-            "h1_header": doc.metadata.get('h1_header', ''),
-            "h2_header": doc.metadata.get('h2_header', ''),
-            "h3_header": doc.metadata.get('h3_header', ''),
-            "h4_header": doc.metadata.get('h4_header', ''),
-            "original_text": doc.metadata.get('original_text', ''),
-            "start_index": doc.metadata.get('start_index'),
-            "end_index": doc.metadata.get('end_index'),
-            
-            # Поля для заполнения вручную/автоматически
-            "question": "",  # Заполняется вручную
-            "reference_answer": "",  # Эталонный ответ (вручную)
-            "generated_answer": "",  # Ответ модели (автоматически)
-            "top_k_contexts": [],  # Top-K контекстов (автоматически)
+            "question": "",
+            "generated_answer": "",
+            "top_k_contexts": [],
             "retrieval_scores": [],  # Скоры ретривера (автоматически)
-            "confidence": 0.0,  # Уверенность модели (автоматически)
-            "latency_sec": 0.0  # Время ответа (автоматически)
         }
         
         benchmark_data.append(entry)
@@ -630,18 +615,12 @@ def process_benchmark_questions(input_file="benchmark_dataset.json",
         logger.info(f"❓ Вопрос {entry['id']}: {question[:50]}...")
         
         try:
-            start_time = time.time()
-            
             # Получаем релевантные документы через ретривер
             retriever = CustomRetriever(vector_store=VECTOR_STORE, reranker=RERANKER)
             scored_documents = retriever.get_relevant_documents(question)
             
-            latency = time.time() - start_time
-            
             if not scored_documents:
-                entry["generated_answer"] = "В базе знаний не найдено информации, релевантной вашему запросу."
-                entry["confidence"] = 0.0
-                entry["latency_sec"] = latency
+                entry["generated_answer"] = "К сожалению, в базе знаний не найдено информации, релевантной вашему запросу. Пожалуйста, попробуйте переформулировать вопрос."
                 entry["top_k_contexts"] = []
                 entry["retrieval_scores"] = []
                 processed_count += 1
@@ -654,15 +633,11 @@ def process_benchmark_questions(input_file="benchmark_dataset.json",
                 {
                     "rank": i + 1,
                     "context": doc.page_content,
-                    "chunk_type": doc.metadata.get('chunk_type'),
-                    "source": doc.metadata.get('source'),
-                    "original_text": doc.metadata.get('original_text', ''),
                     "score": float(score)
                 }
                 for i, (doc, score) in enumerate(top_k_docs)
             ]
-            
-            entry["retrieval_scores"] = [float(score) for _, score in top_k_docs]
+        
             
             # Получаем лучший результат
             best_match_doc = scored_documents[0][0]
@@ -673,7 +648,7 @@ def process_benchmark_questions(input_file="benchmark_dataset.json",
             priority_match = None
             max_priority = -1
             
-            for doc, score in scored_documents[:QA_CONFIG.get("TOP_N_RERANKER", 5)]:
+            for doc, score in scored_documents[:QA_CONFIG.get("TOP_N_RERANKER", 10)]:
                 doc_type = doc.metadata.get('chunk_type')
                 doc_original_text = doc.metadata.get('original_text', '')
                 
@@ -691,16 +666,13 @@ def process_benchmark_questions(input_file="benchmark_dataset.json",
             final_expanded_text = expand_context(best_match_doc)
             
             entry["generated_answer"] = final_expanded_text
-            entry["confidence"] = float(top_score)
-            entry["latency_sec"] = latency
             
             processed_count += 1
-            logger.info(f"✅ Обработано. Confidence: {top_score:.3f}, Latency: {latency:.2f}s")
+            logger.info(f"✅ Обработано. Confidence: {top_score:.3f}")
             
         except Exception as e:
             logger.error(f"❌ Ошибка при обработке вопроса {entry['id']}: {e}")
             entry["generated_answer"] = f"Ошибка обработки: {str(e)}"
-            entry["confidence"] = 0.0
             continue
     
     # Сохранение результатов
@@ -713,70 +685,6 @@ def process_benchmark_questions(input_file="benchmark_dataset.json",
     logger.info(f"   Всего записей: {len(benchmark_data)}")
     
     return output_path
-
-
-def calculate_retrieval_metrics(benchmark_file="benchmark_results.json"):
-    logger.info(f"📊 Вычисление метрик ретривера из: {benchmark_file}")
-    
-    with open(benchmark_file, 'r', encoding='utf-8') as f:
-        benchmark_data = json.load(f)
-    
-    ndcg_scores = []
-    mrr_scores = []
-    ap_scores = []
-    
-    for entry in benchmark_data:
-        if not entry.get("question") or not entry.get("top_k_contexts"):
-            continue
-        
-        # Предполагаем, что релевантный документ - это тот, из которого взят контекст
-        relevant_context = entry.get("context", "")
-        top_k_contexts = entry.get("top_k_contexts", [])
-        
-        if not top_k_contexts:
-            continue
-        
-        # Находим позицию релевантного документа
-        relevant_position = None
-        for i, ctx in enumerate(top_k_contexts[:100]):  # MAP@100
-            if ctx.get("context") == relevant_context:
-                relevant_position = i + 1
-                break
-        
-        # NDCG@10
-        if relevant_position and relevant_position <= 10:
-            dcg = 1.0 / np.log2(relevant_position + 1)
-            idcg = 1.0 / np.log2(2)
-            ndcg_scores.append(dcg / idcg)
-        else:
-            ndcg_scores.append(0.0)
-        
-        # MRR@10
-        if relevant_position and relevant_position <= 10:
-            mrr_scores.append(1.0 / relevant_position)
-        else:
-            mrr_scores.append(0.0)
-        
-        # MAP@100
-        if relevant_position and relevant_position <= 100:
-            ap_scores.append(1.0 / relevant_position)
-        else:
-            ap_scores.append(0.0)
-    
-    metrics = {
-        "ndcg@10": float(np.mean(ndcg_scores)) if ndcg_scores else 0.0,
-        "mrr@10": float(np.mean(mrr_scores)) if mrr_scores else 0.0,
-        "map@100": float(np.mean(ap_scores)) if ap_scores else 0.0,
-        "num_queries": len(ndcg_scores)
-    }
-    
-    logger.info(f"📊 Метрики ретривера:")
-    logger.info(f"   NDCG@10: {metrics['ndcg@10']:.4f}")
-    logger.info(f"   MRR@10: {metrics['mrr@10']:.4f}")
-    logger.info(f"   MAP@100: {metrics['map@100']:.4f}")
-    logger.info(f"   Обработано запросов: {metrics['num_queries']}")
-    
-    return metrics
 
 
 if __name__ == "__main__":
@@ -792,54 +700,78 @@ if __name__ == "__main__":
     
     while True:
         # Режим работы
-        print("\nВыберите режим работы:")
         print("1. Интерактивный режим (вопрос-ответ)")
-        print("2. Создать бенчмарк датасет (ВНИМАНИЕ! Перезапишет существующий файл, нужно будет заполнить вопросы и эталонные ответы вручную)")
+        print("2. Создать бенчмарк датасет")
+        print("   └─ ⚠️  Перезапишет существующий файл")
+        print("   └─ 📝 Нужно будет вручную заполнить вопросы и эталонные ответы")
         print("3. Обработать бенчмарк датасет")
-        print("4. Вычислить метрики ретривера")
+        print("   └─ 🤖 Генерирует ответы модели и Top-K контексты")
         print("0. Выход")
         
-        mode = input("\nВведите номер режима (1-4): ").strip()
+        mode = input("\nВведите номер режима (0-3): ").strip()
         
         if mode == "1":
             # Интерактивный режим
+            print("Введите 'exit' для выхода в главное меню\n")
+            
             while True:
-                user_question = input("\nВведите вопрос (или 'exit' для выхода): ").strip()
+                user_question = input("❓ Ваш вопрос: ").strip()
                 if user_question.lower() == 'exit':
                     break
                 
+                if not user_question:
+                    print("⚠️ Вопрос не может быть пустым")
+                    continue
+                
                 response = answer_question(user_question)
                 
-                print(f"\n📝 Ответ:\n{response['answer']}")
-                print(f"\n📊 Доверие: {response['confidence']:.2f}, Время ответа: {response['latency_sec']:.2f}s")
+                print(f"📝 Ответ:\n{response['answer']}")
+                print(f"📊 Уверенность: {response['confidence']:.2%}")
+                print(f"⏱️  Время ответа: {response['latency_sec']:.2f}s")
                 if response['source_documents']:
-                    print(f"📂 Источник: {response['source_documents'][0].metadata.get('source')} (Тип чанка: {response.get('chunk_type', 'N/A')})")
+                    print(f"📂 Источник: {response['source_documents'][0].metadata.get('source')}")
+                    print(f"🏷️  Тип чанка: {response.get('chunk_type', 'N/A')}")
                 else:
                     print("📂 Источник: Не найдено")
         
         elif mode == "2":
             # Создание бенчмарка
             output_file = os.path.join("benchmark", "benchmark_dataset.json")
+            
+            if os.path.exists(output_file):
+                confirm = input(f"⚠️ Файл {output_file} уже существует. Перезаписать? (y/n): ").strip().lower()
+                if confirm != 'y':
+                    print("❌ Операция отменена")
+                    continue
+            
             create_benchmark_from_qdrant(output_file)
-            logger.info(f"✅ Теперь заполните поля 'question' и 'reference_answer' в файле {output_file}")
+            print("✅ ДАТАСЕТ СОЗДАН")
+            print(f"📂 Файл: {output_file}")
         
         elif mode == "3":
             # Обработка бенчмарка
             input_file = os.path.join("benchmark", "benchmark_dataset.json")
+            
+            if not os.path.exists(input_file):
+                print(f"❌ Файл не найден: {input_file}")
+                print("   Сначала создайте датасет (пункт 2)")
+                continue
+            
             output_file = os.path.join("benchmark", "benchmark_results.json")
-            top_k = QA_CONFIG.get("TOP_N_RERANKER", 5)
+            top_k = 10
+            
+            print(f"📂 Входной файл: {input_file}")
+            print(f"📂 Выходной файл: {output_file}")
+            print(f"🔢 Top-K контекстов: {top_k}\n")
             
             process_benchmark_questions(input_file, output_file, top_k)
-        
-        elif mode == "4":
-            # Вычисление метрик
-            benchmark_file = os.path.join("benchmark", "benchmark_results.json")
             
-            calculate_retrieval_metrics(benchmark_file)
-        
+            print("✅ ОБРАБОТКА ЗАВЕРШЕНА")
+            print(f"📂 Результаты сохранены в: {output_file}")
+
         elif mode == "0":
-            logger.info("👋 Выход из программы.")
+            print("👋 Выход из программы")
             break
 
         else:
-            logger.warning("⚠️ Неверный режим. Запустите программу снова.")
+            print("\n⚠️ Неверный режим. Выберите число от 0 до 3.")
