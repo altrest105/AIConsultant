@@ -500,6 +500,16 @@ def answer_question(question):
     
     logger.info(f"⏱️ Ответ дан за: {latency:.2f}s")
     
+    if top_score < settings.QA_CONFIG.get("CONFIDENCE_THRESHOLD", 0.55):
+        logger.warning(f"⚠️ Низкий уровень доверия: {top_score:.2f}")
+        return {
+            "answer": "К сожалению, в базе знаний не найдено информации, релевантной вашему запросу. Пожалуйста, попробуйте переформулировать вопрос.",
+            "source_documents": [best_match_doc],
+            "confidence": top_score,
+            "latency_sec": latency,
+            "chunk_type": answer_type
+        }
+
     return {
         "answer": answer_text,
         "source_documents": [best_match_doc],
