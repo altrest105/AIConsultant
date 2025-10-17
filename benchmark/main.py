@@ -557,6 +557,7 @@ def create_benchmark_from_qdrant(output_file="benchmark_dataset.json"):
     logger.info("🔄 Создание бенчмарк датасета из проиндексированных документов...")
     
     benchmark_data = []
+    chunks = []
     
     for idx, doc in enumerate(FULL_INDEXED_DOCUMENTS):
         entry = {
@@ -565,23 +566,32 @@ def create_benchmark_from_qdrant(output_file="benchmark_dataset.json"):
             "question": "",
             "generated_answer": "",
             "top_k_contexts": [],
-            "retrieval_scores": [],  # Скоры ретривера (автоматически)
         }
-        
+
+        chunk = {
+            "id": idx,
+            "context": doc.page_content,
+        }
+
         benchmark_data.append(entry)
+        chunks.append(chunk)
     
     # Сохранение в JSON
     output_path = pathlib.Path(output_file)
+    chunks_output = pathlib.Path(os.path.join("benchmark", "chunks.json"))
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(benchmark_data, f, ensure_ascii=False, indent=2)
+    with open(chunks_output, 'w', encoding='utf-8') as f:
+        json.dump(chunks, f, ensure_ascii=False, indent=2)
     
+    logger.info(f"✅ Чанки сохранены: {chunks_output}")
     logger.info(f"✅ Бенчмарк датасет создан: {output_path}")
     logger.info(f"   Всего записей: {len(benchmark_data)}")
     return output_path
 
 
 def process_benchmark_questions(input_file="benchmark_dataset.json", 
-                                output_file="benchmark_results.json",
+                                output_file="benchmark.json",
                                 top_k=10):
     global VECTOR_STORE, RERANKER, FULL_INDEXED_DOCUMENTS
     
@@ -665,6 +675,8 @@ def process_benchmark_questions(input_file="benchmark_dataset.json",
             # Расширение контекста и получение ответа
             final_expanded_text = expand_context(best_match_doc)
             
+            for h in 'H0,H1,H2,H3,H4,L'.split(','):
+                final_expanded_text = final_expanded_text.replace(f'<{h}>', '').replace(f'</{h}>', f'')
             entry["generated_answer"] = final_expanded_text
             
             processed_count += 1
@@ -757,7 +769,7 @@ if __name__ == "__main__":
                 print("   Сначала создайте датасет (пункт 2)")
                 continue
             
-            output_file = os.path.join("benchmark", "benchmark_results.json")
+            output_file = os.path.join("benchmark", "benchmark.json")
             top_k = 10
             
             print(f"📂 Входной файл: {input_file}")
