@@ -78,7 +78,7 @@ function initThreeScene() {
   const width = avatarContainer.value.clientWidth;
   const height = avatarContainer.value.clientHeight;
   camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-  camera.position.set(0, 5, 20);
+  camera.position.set(0, 5, 22);
   camera.lookAt(0, 3, -3);
 
   renderer = new THREE.WebGLRenderer({ 
@@ -134,10 +134,10 @@ function initThreeScene() {
 async function loadModelAndAnimations() {
   const loader = new GLTFLoader();
   const animationFiles = {
-    greeting: '/models/hihi.glb',
-    thinking: '/models/waiting.glb',
-    speaking: '/models/attention.glb',
-    farewell: '/models/byebye.glb',
+    greeting: '/models/hihi.glb',      // приветствие
+    idle: '/models/waiting.glb',       // ожидание (основное состояние)
+    thinking: '/models/attention.glb', // обработка вопроса
+    farewell: '/models/byebye.glb',    // прощание
   };
 
   try {

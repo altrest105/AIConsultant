@@ -95,7 +95,7 @@ function getStatusText() {
     greeting: 'Приветствую',
     idle: 'Готов к работе',
     thinking: 'Обработка...',
-    speaking: 'Отвечаю'
+    farewell: 'До свидания!'
   };
   return statusMap[botStatus.value] || 'В сети';
 }
@@ -106,22 +106,17 @@ function handleSetBotStatus(status) {
     }
     
     botStatus.value = status;
-    
-    if (status === 'thinking') {
-        setTimeout(() => {
-            if (botStatus.value === 'thinking') {
-                 botStatus.value = 'idle';
-            }
-        }, 5000);
-    }
 }
 
 function handleNewMessage(message) {
   messages.value.push({ ...message, id: nextId.value++ });
+  
   if (message.sender === 'user') {
-    handleSetBotStatus('thinking'); 
+    handleSetBotStatus('thinking');
   } else if (message.sender === 'bot') {
-    handleSetBotStatus('idle'); 
+    setTimeout(() => {
+      handleSetBotStatus('idle');
+    }, 2000);
   }
 }
 
@@ -146,7 +141,7 @@ function getParticleStyle(index) {
 async function handleEndSession() {
   botStatus.value = 'farewell';
   
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  await new Promise(resolve => setTimeout(resolve, 4000));
   
   router.push('/');
 }
@@ -290,7 +285,7 @@ async function handleEndSession() {
 }
 
 .sidebar-panel {
-  width: 480px;
+  width: 520px;
   height: 95%;
   max-height: 900px;
   border-radius: var(--radius-2xl);
