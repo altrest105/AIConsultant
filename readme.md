@@ -55,7 +55,7 @@ git clone https://github.com/altrest105/AIConsultant
 cd AIConsultant
 
 # Запустить все сервисы
-docker-compose up --d
+docker-compose up -d
 ```
 
 Приложение будет доступно по адресу:
