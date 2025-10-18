@@ -1,4 +1,4 @@
-FROM nvidia/cuda:13.0.0-cudnn9-runtime-ubuntu22.04 AS base
+FROM nvidia/cuda:12.9.1-base-ubuntu20.04 AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.13 \
@@ -15,10 +15,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
 RUN update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3 1
 
 RUN pip install --no-cache-dir --upgrade pip
-
-RUN pip install torch==2.8.0 torchvision==0.17.0 --index-url https://download.pytorch.org/whl/cu130
-
-RUN pip install transformers==4.56.2
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu129
 
 WORKDIR /app
 COPY requirements.txt .
