@@ -26,6 +26,7 @@ RUN mkdir -p /app/files/docs \
 ENV HF_HOME=/app/files/hf_cache
 ENV TRANSFORMERS_CACHE=/app/files/hf_cache
 ENV HF_DATASETS_CACHE=/app/files/hf_cache
+ENV COQUI_TOS_AGREED=1
 
 EXPOSE 8000
 
