@@ -205,7 +205,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 # STT (Speech To Text) config
 STT_CONFIG = {
-    "STT_IS_ACTIVE": False,
+    "STT_IS_ACTIVE": True,
     "MODEL_SIZE": "large",
 
     "GPU_COMPUTE_TYPE": "float16",
@@ -219,7 +219,7 @@ STT_CONFIG = {
 
 # TTS (Text To Speech) config
 TTS_CONFIG = {
-    "TTS_IS_ACTIVE": False,
+    "TTS_IS_ACTIVE": True,
     "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2",
 
     "REFERENCE_WAV_PATH": BASE_DIR / 'files' / 'audio.wav',

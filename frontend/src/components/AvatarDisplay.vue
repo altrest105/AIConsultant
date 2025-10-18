@@ -79,7 +79,7 @@ const statusText = computed(() => {
     case 'greeting':
       return 'Приветствую!';
     case 'thinking':
-      return 'Обработка запроса...';
+      return 'Обработка...';
     case 'speaking':
       return 'Предлагаю задать вопрос';
     case 'farewell':
@@ -126,7 +126,6 @@ function initThreeScene() {
   rimLight.position.set(0, 2, -5);
   scene.add(rimLight);
 
-
   const platformGeometry = new THREE.CylinderGeometry(2.5, 2.5, 0.1, 64);
   
   const platformMaterial = new THREE.MeshStandardMaterial({
@@ -156,13 +155,14 @@ function initThreeScene() {
 async function loadModelAndAnimations() {
   const loader = new GLTFLoader();
   const animationFiles = {
-    greeting: '/models/greeting.glb',
+    greeting: '/models/hihi.glb',
+    thinking: '/models/waiting.glb',
     speaking: '/models/attention.glb',
-    farewell: '/models/end.glb',
+    farewell: '/models/byebye.glb',
   };
 
   try {
-    const gltf = await loader.loadAsync('/models/idle.glb', (progress) => {
+    const gltf = await loader.loadAsync('/models/waiting.glb', (progress) => {
       if (progress.total > 0) {
         loadProgress.value = Math.round((progress.loaded / progress.total) * 100 / (Object.keys(animationFiles).length + 1));
       }
@@ -187,7 +187,6 @@ async function loadModelAndAnimations() {
     mixer = new THREE.AnimationMixer(model);
     const idleAction = mixer.clipAction(gltf.animations[0]);
     animationActions['idle'] = idleAction;
-    animationActions['thinking'] = idleAction;
 
     const allPromises = Object.entries(animationFiles).map(([name, path], index) =>
       loader.loadAsync(path, (progress) => {
@@ -209,14 +208,7 @@ async function loadModelAndAnimations() {
     isLoading.value = false;
     loadProgress.value = 100;
     
-    setTimeout(() => {
-      setActiveAnimation('greeting');
-      setTimeout(() => {
-        if (props.status === 'greeting') {
-          setActiveAnimation('idle');
-        }
-      }, 3000);
-    }, 1000);
+    setActiveAnimation('greeting');
 
   } catch (error) {
     console.error('Ошибка загрузки модели или анимаций:', error);
@@ -232,7 +224,7 @@ function setActiveAnimation(name, loop = THREE.LoopRepeat) {
   activeAction = animationActions[name];
 
   if (previousAction && previousAction !== activeAction) {
-    previousAction.fadeOut(0.5);
+    previousAction.fadeOut(0.2);
   }
 
   activeAction
@@ -240,7 +232,7 @@ function setActiveAnimation(name, loop = THREE.LoopRepeat) {
     .setLoop(loop)
     .setEffectiveTimeScale(1)
     .setEffectiveWeight(1)
-    .fadeIn(0.5)
+    .fadeIn(0.2)
     .play();
 }
 
@@ -492,7 +484,7 @@ watch(() => props.status, (newStatus) => {
 }
 
 .status-indicator {
-  position: absolute;
+  position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
@@ -506,7 +498,9 @@ watch(() => props.status, (newStatus) => {
   border-radius: 30px;
   box-shadow: var(--shadow-lg);
   z-index: 10;
-  animation: statusFloat 3s ease-in-out infinite;
+  min-width: 200px;
+  justify-content: center;
+  transition: width 0.3s ease, min-width 0.3s ease;
 }
 
 @keyframes statusFloat {
@@ -514,7 +508,7 @@ watch(() => props.status, (newStatus) => {
     transform: translateX(-50%) translateY(0);
   }
   50% {
-    transform: translateX(-50%) translateY(-8px);
+    transform: translateX(-50%) translateY(-5px);
   }
 }
 

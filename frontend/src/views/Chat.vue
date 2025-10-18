@@ -79,11 +79,15 @@ const messages = ref([
 ]);
 const nextId = ref(1);
 const botStatus = ref('greeting');
+const hasGreeted = ref(false);
 
 onMounted(() => {
   setTimeout(() => {
-    handleSetBotStatus('idle');
-  }, 3000); 
+    if (!hasGreeted.value) {
+      botStatus.value = 'idle';
+      hasGreeted.value = true;
+    }
+  }, 2500);
 });
 
 function getStatusText() {
@@ -97,7 +101,12 @@ function getStatusText() {
 }
 
 function handleSetBotStatus(status) {
+    if (status === 'greeting' && hasGreeted.value) {
+      return;
+    }
+    
     botStatus.value = status;
+    
     if (status === 'thinking') {
         setTimeout(() => {
             if (botStatus.value === 'thinking') {
@@ -137,7 +146,7 @@ function getParticleStyle(index) {
 async function handleEndSession() {
   botStatus.value = 'farewell';
   
-  await new Promise(resolve => setTimeout(resolve, 4000));
+  await new Promise(resolve => setTimeout(resolve, 2000));
   
   router.push('/');
 }
@@ -385,6 +394,7 @@ async function handleEndSession() {
   backdrop-filter: blur(20px);
   border: 1px solid rgba(0, 102, 204, 0.1);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  position: relative;
 }
 
 .chat-topbar {
@@ -479,8 +489,8 @@ async function handleEndSession() {
 
 .end-session-button {
   position: absolute;
-  top: 15px;
-  right: 15px;
+  top: 20px;
+  right: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
