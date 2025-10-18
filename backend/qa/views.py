@@ -4,7 +4,16 @@ from rest_framework import status
 from . import utils
 
 class QAView(APIView):
+    """
+    Обрабатывает запросы к QA-системе.
+    Принимает вопрос и возвращает сгенерированный ответ.
+    """
     def post(self, request, *args, **kwargs):
+        """
+        Обрабатывает POST-запрос с вопросом.
+        Принимает JSON с полем 'question' и возвращает ответ,
+        сформированный QA-системой.
+        """
         question = request.data.get('question', '').strip()
 
         # Валидация входных данных

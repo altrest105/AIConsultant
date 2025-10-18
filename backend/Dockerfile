@@ -1,21 +1,15 @@
-FROM nvidia/cuda:12.9.1-base-ubuntu20.04 AS base
+FROM python:3.13-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.13 \
-    python3.13-distutils \
-    python3-pip \
-    build-essential \
-    git \
-    curl \
-    ffmpeg \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1
-RUN update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3 1
+    wget curl build-essential ffmpeg git \
+    && wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb \
+    && dpkg -i cuda-keyring_1.1-1_all.deb \
+    && apt-get update \
+    && apt-get install -y cuda-toolkit-13-0 libcudnn9-cuda-13 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu129
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 
 WORKDIR /app
 COPY requirements.txt .

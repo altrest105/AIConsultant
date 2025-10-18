@@ -10,10 +10,20 @@ logger = logging.getLogger(__name__)
 
 
 class TTSStreamSynthesizeView(APIView):
+    """
+    Обрабатывает запросы на потоковый синтез речи (Text-to-Speech).
+    Принимает текст и возвращает аудиопоток в формате WAV.
+    """
     # Указываем, что ожидаем только JSON данные
     parser_classes = [JSONParser, FormParser] 
 
     def post(self, request, *args, **kwargs):
+        """
+        Обрабатывает POST-запрос для синтеза речи.
+
+        Принимает JSON с полем 'text' и возвращает StreamingHttpResponse
+        с аудиоданными в формате 'audio/wav'.
+        """
         try:
             # Данные уже распарсены в request.data
             text = request.data.get('text', '').strip()

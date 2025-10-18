@@ -10,6 +10,12 @@ WHISPER_MODEL = None
 
 
 def get_model():
+    """
+    Инициализирует и возвращает синглтон-экземпляр модели Whisper.
+    Модель загружается в память при первом вызове и переиспользуется
+    при последующих. Пытается использовать GPU, при неудаче
+    переключается на CPU.
+    """
     global WHISPER_MODEL
     
     if WHISPER_MODEL is not None:
@@ -39,6 +45,11 @@ def get_model():
 
 
 def transcribe_audio(file_path):
+    """
+    Транскрибирует аудиофайл в текст с помощью модели Whisper.
+    Принимает путь к файлу, выполняет распознавание речи
+    и возвращает полученный текст.
+    """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Файл не найден: {file_path}")
     

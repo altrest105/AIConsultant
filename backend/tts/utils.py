@@ -15,6 +15,11 @@ TTS_MODEL = None
 
 
 def get_model():
+    """
+    Инициализирует и возвращает синглтон-экземпляр TTS модели.
+    Модель загружается в память при первом вызове и переиспользуется
+    при последующих. В случае ошибки инициализации вызывает RuntimeError.
+    """
     global TTS_MODEL
     
     if TTS_MODEL is not None:
@@ -39,6 +44,11 @@ def get_model():
 
 
 def split_text_into_sentences(text):
+    """
+    Разбивает текст на предложения для более плавной генерации речи.
+    Длинные предложения дополнительно разбиваются по запятым.
+    Возвращает список предложений или их частей.
+    """
     # Разбиваем на предложения по точке, восклицательному и вопросительному знакам
     sentences = re.split(r'([.!?]+)', text)
     
@@ -75,6 +85,11 @@ def split_text_into_sentences(text):
 
 
 def normalize_text_for_speech(text):
+    """
+    Нормализует текст для преобразования в речь.
+    Расшифровывает сокращения, форматирует числа, даты, email и т.д.
+    в удобочитаемый для TTS движка формат.
+    """
     # Словарь базовых сокращений (только самые необходимые)
     abbreviations = {
         'гг.': 'годов',
@@ -93,6 +108,7 @@ def normalize_text_for_speech(text):
     }
 
     def roman_to_arabic(match):
+        """Конвертирует римские числа в арабские."""
         roman = match.group(0).upper()
         
         # Игнорируем пустые строки
@@ -132,6 +148,7 @@ def normalize_text_for_speech(text):
     phone_storage = []
     
     def format_phone(match):
+        """Форматирует телефонные номера в произносимый текст."""
         phone = match.group(0)
         # Убираем все символы кроме цифр и плюса
         cleaned = re.sub(r'[^\d+]', '', phone)
@@ -203,12 +220,14 @@ def normalize_text_for_speech(text):
     }
     
     def day_to_ordinal(day_str):
+        """Преобразует число дня в порядковое числительное в родительном падеже."""
         day = int(day_str)
         
         formatted_day = f"{day:02d}"
         return ordinal_days.get(formatted_day, day_str)
     
     def year_to_words(year_str):
+        """Преобразует год в текстовое представление в родительном падеже."""
         year = int(year_str)
         
         if year < 1000 or year > 9999:
@@ -269,6 +288,7 @@ def normalize_text_for_speech(text):
         return ' '.join(result)
     
     def format_date(match):
+        """Форматирует дату (ДД.ММ.ГГГГ) в произносимый текст."""
         day, month, year = match.groups()
         
         day_word = day_to_ordinal(day)
@@ -281,6 +301,7 @@ def normalize_text_for_speech(text):
     text = re.sub(r'(\d{1,2})\.(\d{1,2})\.(\d{4})\b', format_date, text)
     
     def format_short_date(match):
+        """Форматирует дату с коротким годом (ДД.ММ.ГГ) в произносимый текст."""
         day, month, year = match.groups()
         full_year = f"20{year}" if int(year) < 50 else f"19{year}"
         
@@ -293,6 +314,7 @@ def normalize_text_for_speech(text):
     text = re.sub(r'(\d{1,2})\.(\d{1,2})\.(\d{2})(?!\d)', format_short_date, text)
     
     def format_email(match):
+        """Форматирует email, заменяя символы на слова."""
         email = match.group(0)
         email = email.replace('@', ' собака ')
         email = email.replace('.', ' точка ')
@@ -309,6 +331,7 @@ def normalize_text_for_speech(text):
     long_number_storage = []
     
     def format_long_number(match):
+        """Разбивает длинные числа на группы по три цифры для произношения."""
         number_str = match.group(0)
         length = len(number_str)
         
@@ -338,6 +361,7 @@ def normalize_text_for_speech(text):
     text = re.sub(r'\b\d{7,}\b', format_long_number, text)
     
     def format_large_number(match):
+        """Преобразует большие числа (миллионы, миллиарды) в текстовый формат."""
         number_str = match.group(0).replace(' ', '')
         
         if len(number_str) > 15:
@@ -376,6 +400,7 @@ def normalize_text_for_speech(text):
     text = re.sub(r'\d+(?:\s+\d+)+', format_large_number, text)
     
     def format_decimal(match):
+        """Форматирует десятичные дроби в произносимый текст."""
         whole = match.group(1)
         fractional = match.group(2)
         
@@ -454,6 +479,7 @@ def normalize_text_for_speech(text):
         text = text.replace(phone_placeholder.format(idx), phone)
     
     def replace_leading_zeros(match):
+        """Заменяет числа с ведущими нулями на произносимые слова."""
         number = match.group(0)
         if number.startswith('0'):
             result = []
@@ -476,6 +502,12 @@ def normalize_text_for_speech(text):
 
 
 def text_to_speech_streaming(text):
+    """
+    Преобразует текст в речь и отдает аудиопоток по частям (стриминг).
+    Разбивает текст на предложения, генерирует для каждого аудиофрагмент
+    и отдает его как часть потока (yield) в виде байтов WAV.
+    Вызывает ValueError, если входной текст пустой.
+    """
     if not text or not text.strip():
         raise ValueError("Текст не может быть пустым")
     

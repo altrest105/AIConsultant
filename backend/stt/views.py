@@ -11,9 +11,19 @@ logger = logging.getLogger(__name__)
 
 
 class STTRecognizeView(APIView):
+    """
+    Обрабатывает запросы на распознавание речи (Speech-to-Text).
+    Принимает аудиофайл и возвращает транскрибированный текст.
+    """
     parser_classes = [MultiPartParser, FormParser]
     
     def post(self, request):
+        """
+        Обрабатывает POST-запрос для распознавания речи.
+
+        Принимает аудиофайл в `multipart/form-data` и возвращает JSON
+        с полем 'text', содержащим распознанный текст.
+        """
         # Получение файла
         uploaded_file = request.FILES.get('file')
         if not uploaded_file:

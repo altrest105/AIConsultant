@@ -28,6 +28,7 @@ HEADER_PRIORITY = {'H0': 6.0, 'H1': 5.0, 'H2': 4.0, 'H3': 3.0, 'H4': 2.0, 'T': 1
 
 # Инициализация всех компонентов QA
 def initialize_embeddings():
+    """Инициализирует и загружает модель для создания векторных представлений (embeddings)."""
     global EMBEDDINGS_MODEL
 
     embedding_model_name = settings.QA_CONFIG.get("EMBEDDING_MODEL_NAME")
@@ -45,6 +46,7 @@ def initialize_embeddings():
         EMBEDDINGS_MODEL = None
 
 def initialize_reranker():
+    """Инициализирует и загружает модель для переранжирования (reranker)."""
     global RERANKER
 
     reranker_model_name = settings.QA_CONFIG.get("RERANKER_MODEL_NAME", "BAAI/bge-reranker-v2-m3")
@@ -64,6 +66,7 @@ def initialize_reranker():
         RERANKER = None
 
 def initialize_vector_store():
+    """Инициализирует клиент для векторного хранилища Qdrant."""
     global VECTOR_STORE, EMBEDDINGS_MODEL
     logger.info("🔄 Инициализация Qdrant...")
     if not EMBEDDINGS_MODEL:
@@ -85,6 +88,7 @@ def initialize_vector_store():
         VECTOR_STORE = None
 
 def initialize_qa_system():
+    """Выполняет полную инициализацию всех компонентов QA-системы."""
     global EMBEDDINGS_MODEL, RERANKER, VECTOR_STORE
     
     if not (EMBEDDINGS_MODEL and RERANKER and VECTOR_STORE):
@@ -96,6 +100,7 @@ def initialize_qa_system():
 
 # Парсинг DOCX
 def is_bold_paragraph(p):
+    """Проверяет, является ли параграф в DOCX-документе жирным."""
     text = p.text.strip()
     if not text:
         return False
@@ -106,9 +111,11 @@ def is_bold_paragraph(p):
     return False
 
 def equals_indent(indent_emu, target_cm, eps_cm=0.01):
+    """Сравнивает отступ параграфа с целевым значением в сантиметрах."""
     return abs(indent_emu.cm - target_cm) < eps_cm
 
 def get_chunk_type(paragraph):
+    """Определяет семантический тип параграфа (заголовок, текст, список)."""
     style_name = paragraph.style.name.lower()
     text = paragraph.text.strip()
     if not text: return None
@@ -146,6 +153,7 @@ def get_chunk_type(paragraph):
     return None
 
 def parse_document_universal(file_path):
+    """Парсит DOCX-файл, разбивая его на семантические чанки (заголовки, текст)."""
     logger.info(f"📄 Парсинг файла: {file_path.name}")
     
     if file_path.suffix.lstrip('.') != 'docx':
@@ -161,7 +169,7 @@ def parse_document_universal(file_path):
     current_header_h0: str = "" 
     current_header_h1: str = "" 
     current_header_h2: str = ""
-    current_header_h3: str = ""
+    current_header_h3: str = "" 
     current_header_h4: str = ""
     
     while i < paragraphs_data_count:
@@ -281,6 +289,7 @@ def parse_document_universal(file_path):
 
 # Обновление BM25 индекса
 def update_bm25_index(documents):
+    """Обновляет BM25-индекс и глобальный список документов."""
     global BM25_INDEX, BM25_CORPUS, FULL_INDEXED_DOCUMENTS
 
     texts = [doc.page_content for doc in documents]
@@ -296,10 +305,12 @@ def update_bm25_index(documents):
     logger.info(f"✅ Индексы (Qdrant, BM25) и структура (FULL_INDEXED_DOCUMENTS) обновлены.")
 
 def chunk_list(data, size):
+    """Разделяет список на батчи заданного размера."""
     for i in range(0, len(data), size):
         yield data[i:i + size]
 
 def index_document(file_path):
+    """Индексирует один документ, добавляя его чанки в Qdrant и BM25."""
     global VECTOR_STORE
 
     documents = parse_document_universal(file_path)
@@ -320,6 +331,7 @@ def index_document(file_path):
     update_bm25_index(documents)
 
 def index_knowledge_base(folder_path):
+    """Полностью переиндексирует базу знаний из указанной папки."""
     logger.info(f"📚 Индексация базы знаний")
     if not folder_path.exists():
         logger.error(f"❌ Папка не найдена: {folder_path}")
@@ -355,11 +367,13 @@ def index_knowledge_base(folder_path):
 
 # Ретивер
 class CustomRetriever:
+    """Гибридный ретривер, использующий векторный поиск, BM25 и реранжирование."""
     def __init__(self, vector_store, reranker):
         self.vector_store = vector_store
         self.reranker = reranker
 
     def get_relevant_documents(self, query):
+        """Находит и ранжирует наиболее релевантные документы для заданного вопроса."""
         global BM25_INDEX, BM25_CORPUS
         
         vec_results = self.vector_store.similarity_search_with_score(query, k=settings.QA_CONFIG.get("K_VEC", 40))
@@ -407,6 +421,7 @@ class CustomRetriever:
 
 # Расширение контекста и ответ
 def expand_context(best_match_doc):
+    """Расширяет контекст для найденного заголовка, собирая последующий текст."""
     global FULL_INDEXED_DOCUMENTS, HEADER_PRIORITY
     
     chunk_type = best_match_doc.metadata.get('chunk_type')
@@ -452,6 +467,7 @@ def expand_context(best_match_doc):
     return "\n\n".join(expanded_text)
 
 def answer_question(question):
+    """Основная функция для ответа на вопрос, использующая всю цепочку RAG."""
     global VECTOR_STORE, RERANKER, FULL_INDEXED_DOCUMENTS, HEADER_PRIORITY
     
     if not (VECTOR_STORE and RERANKER and FULL_INDEXED_DOCUMENTS):
