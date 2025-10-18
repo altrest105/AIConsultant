@@ -445,22 +445,6 @@ stroke-width="2"/>
   bottom: 0;
 }
 
-.message-wrapper.bot .bubble-tail {
-  left: -6px;
-  border-left: 6px solid transparent;
-  border-right: 6px solid rgba(0, 102, 204, 0.3);
-  border-bottom: 6px solid transparent;
-  border-top: 6px solid rgba(0, 102, 204, 0.3);
-}
-
-.message-wrapper.user .bubble-tail {
-  right: -6px;
-  border-left: 6px solid var(--transneft-dark-red);
-  border-right: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-top: 6px solid var(--transneft-dark-red);
-}
-
 @keyframes float {
   0%, 100% {
     transform: translateY(0);
