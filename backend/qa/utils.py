@@ -8,7 +8,7 @@ from sentence_transformers import CrossEncoder
 from rank_bm25 import BM25Okapi
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Qdrant
-from langchain.schema import Document
+from langchain_core.documents import Document
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from django.conf import settings

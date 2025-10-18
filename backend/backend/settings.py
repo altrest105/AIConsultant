@@ -51,6 +51,10 @@ new_cache_dir = BASE_DIR / 'files' / 'hf_cache'
 new_cache_dir.mkdir(parents=True, exist_ok=True) 
 os.environ['HF_HOME'] = str(new_cache_dir)
 os.environ['TRANSFORMERS_CACHE'] = str(new_cache_dir / "models")
+tts_cache_dir = BASE_DIR / 'files' / 'hf_cache' / 'tts_models'
+tts_cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ["COQUI_TOS_AGREED"] = "1"
+os.environ["TTS_HOME"] = str(tts_cache_dir)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -205,7 +209,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 # STT (Speech To Text) config
 STT_CONFIG = {
-    "STT_IS_ACTIVE": True,
+    "STT_IS_ACTIVE": False,
     "MODEL_SIZE": "large",
 
     "GPU_COMPUTE_TYPE": "float16",
@@ -230,7 +234,7 @@ TTS_CONFIG = {
 
 # QA config
 QA_CONFIG = {
-    "QA_IS_ACTIVE": True,
+    "QA_IS_ACTIVE": False,
     "QA_DOCX": BASE_DIR / 'files' / 'docs',
 
     "K_VEC": 40,

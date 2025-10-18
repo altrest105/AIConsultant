@@ -25,33 +25,36 @@ function getCurrentTime() {
   return now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
-// НОВАЯ ФУНКЦИЯ: Преобразование кастомных тегов в HTML
 function formatBotText(rawText) {
     if (!rawText) return '';
 
     let htmlText = rawText;
 
-    // 1. Замена заголовков H0, H1, H3, H4 на h3, h4, h5, h6
-    // H0 -> h3 (Самый главный заголовок)
+
     htmlText = htmlText.replace(/<H0>(.*?)<\/H0>/gs, '<h3>$1</h3>');
-    // H1 -> h4 (Основной раздел)
+
     htmlText = htmlText.replace(/<H1>(.*?)<\/H1>/gs, '<h4>$1</h4>');
-    // H3 -> h5 (Подраздел)
+
     htmlText = htmlText.replace(/<H3>(.*?)<\/H3>/gs, '<h5>$1</h5>');
-    // H4 -> h6 (Детализация)
+
     htmlText = htmlText.replace(/<H4>(.*?)<\/H4>/gs, '<h6>$1</h6>');
 
-    // 2. Замена элементов списка L на <li>
     htmlText = htmlText.replace(/<L>(.*?)<\/L>/gs, '<li class="formatted-list-item">$1</li>');
 
-    // 3. Оборачивание всех последовательностей <li> в один <ul>
-    // Регулярное выражение ищет одну или более последовательных <li> и оборачивает их в <ul class="formatted-list">
     htmlText = htmlText.replace(/(\s*<li.*?<\/li>\s*)+/gs, '<ul class="formatted-list">$&</ul>');
     
-    // 4. Удаление лишних </ul><ul...> которые могли появиться в результате предыдущей замены
     htmlText = htmlText.replace(/<\/ul>\s*<ul class="formatted-list">/gs, '');
 
     return htmlText.trim();
+}
+
+function stripHtmlTags(html) {
+    if (!html) return '';
+    
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    
+    return tmp.textContent || tmp.innerText || '';
 }
 
 watch(
@@ -70,7 +73,7 @@ watch(
 );
 // TTS ФУНКЦИОНАЛ
 function findRIFF(buffer) {
-    const riff = [0x52, 0x49, 0x46, 0x44];
+    const riff = [0x52, 0x49, 0x46, 0x46];
     for (let i = 0; i < buffer.length - 3; i++) {
         if (buffer[i] === riff[0] && 
             buffer[i + 1] === riff[1] && 
@@ -135,6 +138,13 @@ function stopAudioPlayback(resetId = true) {
 
 async function toggleTtsPlayback(msgId, textToSpeak) {
     if (!textToSpeak) return;
+    
+    const cleanText = stripHtmlTags(formatBotText(textToSpeak));
+    
+    if (!cleanText.trim()) {
+        return;
+    }
+    
     if (isTtsStreaming || isTtsPlaying.value) {
         if (currentPlayingMessageId.value === msgId) {
             stopAudioPlayback(true);
@@ -154,7 +164,7 @@ async function toggleTtsPlayback(msgId, textToSpeak) {
         const response = await fetch(`${API_BASE_URL}${TTS_ENDPOINT}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: textToSpeak }),
+            body: JSON.stringify({ text: cleanText }),
         });
         if (!response.ok) {
             throw new Error(`Ошибка HTTP: ${response.status}`);

@@ -24,8 +24,6 @@ def get_model():
     
     if TTS_MODEL is not None:
         return TTS_MODEL
-    
-    os.environ["COQUI_TOS_AGREED"] = "1"
 
     try:
         logger.info("🔄 Загрузка TTS модели...")

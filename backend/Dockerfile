@@ -1,10 +1,9 @@
 FROM python:3.13
 
-ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg git build-essential \
+    ffmpeg build-essential \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # создаём изолированное окружение
