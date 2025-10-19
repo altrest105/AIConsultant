@@ -209,7 +209,7 @@ CSRF_TRUSTED_ORIGINS = [
 
 # STT (Speech To Text) config
 STT_CONFIG = {
-    "STT_IS_ACTIVE": False,
+    "STT_IS_ACTIVE": True,
     "MODEL_SIZE": "large",
 
     "GPU_COMPUTE_TYPE": "float16",
@@ -234,7 +234,7 @@ TTS_CONFIG = {
 
 # QA config
 QA_CONFIG = {
-    "QA_IS_ACTIVE": False,
+    "QA_IS_ACTIVE": True,
     "QA_DOCX": BASE_DIR / 'files' / 'docs',
 
     "K_VEC": 40,

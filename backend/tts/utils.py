@@ -6,7 +6,6 @@ import logging
 import torch
 from django.conf import settings
 from TTS.api import TTS
-from django.conf import settings
 from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
