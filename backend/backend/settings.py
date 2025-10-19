@@ -209,46 +209,48 @@ CSRF_TRUSTED_ORIGINS = [
 
 # STT (Speech To Text) config
 STT_CONFIG = {
-    "STT_IS_ACTIVE": True,
-    "MODEL_SIZE": "large",
+    "STT_IS_ACTIVE": True, # Включить/выключить функцию распознавания речи
+    "STT_DEVICE": "cpu", # Устройство для обработки: "cpu"  или "cuda"
+    "MODEL_SIZE": "large", # Размер модели Whisper: "tiny", "base", "small", "medium", "large"
 
-    "GPU_COMPUTE_TYPE": "float16",
-    "CPU_COMPUTE_TYPE": "int8",
+    "GPU_COMPUTE_TYPE": "float16", # Тип вычислений на GPU
+    "CPU_COMPUTE_TYPE": "int8", # Тип вычислений на CPU
     
-    "LANGUAGE": "ru",
-    "BEAM_SIZE": 5,
-    "VAD_THRESHOLD": 0.5,
-    "VAD_MIN_SPEECH_DURATION_MS": 250,
+    "LANGUAGE": "ru", # Язык распознавания речи
+    "BEAM_SIZE": 5,  # Ширина луча поиска (больше = точнее, но медленнее). Диапазон: 1-10
+    "VAD_THRESHOLD": 0.5, # Порог активации голоса (0-1). Чем выше, тем строже фильтр шума
+    "VAD_MIN_SPEECH_DURATION_MS": 250, # Минимальная длительность речи в миллисекундах для распознавания
 }
 
 # TTS (Text To Speech) config
 TTS_CONFIG = {
-    "TTS_IS_ACTIVE": True,
-    "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2",
+    "TTS_IS_ACTIVE": True, # Включить/выключить функцию озвучивания текста
+    "TTS_DEVICE": "cpu", # Устройство для обработки: "cpu" или "cuda"
+    "MODEL_NAME": "tts_models/multilingual/multi-dataset/xtts_v2", # Название модели для генерации голоса
 
-    "REFERENCE_WAV_PATH": BASE_DIR / 'files' / 'audio.wav',
-
-    "SPEAKER": "Aaron Dreschner",
-    "LANGUAGE": "ru",
+    "REFERENCE_WAV_PATH": BASE_DIR / 'files' / 'audio.wav', # Путь к аудиофайлу с образцом голоса (для клонирования)
+    "SPEAKER": "Aaron Dreschner", # Имя голоса диктора (из предустановленных вариантов)
+    "LANGUAGE": "ru", # Язык озвучивания
 }
 
 # QA config
 QA_CONFIG = {
-    "QA_IS_ACTIVE": True,
-    "QA_DOCX": BASE_DIR / 'files' / 'docs',
+    "QA_IS_ACTIVE": True, # Включить/выключить функцию ответов на вопросы
+    "QA_DEVICE": "cuda", # Устройство для обработки: "cuda" или "cpu"
+    "QA_DOCX": BASE_DIR / 'files' / 'docs', # Папка с документами (файлы .docx) для базы знаний
 
-    "K_VEC": 40,
-    "K_BM25": 40,
-    "ALPHA": 0.5,
-    "TOP_N_RERANKER": 10,
-    "CONFIDENCE_THRESHOLD": 0.55,
+    "K_VEC": 40, # Количество результатов из векторного поиска (по смыслу)
+    "K_BM25": 40, # Количество результатов из BM25 поиска (по ключевым словам)
+    "ALPHA": 0.5, # Коэффициент смешивания (0-1): 0 = только BM25, 1 = только векторный поиск
+    "TOP_N_RERANKER": 10, # Сколько лучших результатов оставить после reranker (переранжирования)
+    "CONFIDENCE_THRESHOLD": 0.55, # Минимальный порог уверенности (0-1) для принятия ответа
 
-    "EMBEDDING_MODEL_NAME": "BAAI/bge-m3",
+    "EMBEDDING_MODEL_NAME": "BAAI/bge-m3", # Модель для создания векторных представлений текста
+    "RERANKER_MODEL_NAME": "BAAI/bge-reranker-v2-m3", # Модель для переранжирования результатов (выбор самого точного)
+    
+    "RERANKER_MAX_LENGTH": 512, # Максимальная длина текста для reranker (в токенах)
 
-    "RERANKER_MODEL_NAME": "BAAI/bge-reranker-v2-m3",
-    "RERANKER_MAX_LENGTH": 512,
-
-    "QDRANT_NAME": "transconsultant_kb",
-    "QDRANT_PATH": BASE_DIR / 'files' / 'qdrant_storage',
-    "QDRANT_BATCH_SIZE": 32,
+    "QDRANT_NAME": "transconsultant_kb", # Имя коллекции в векторной базе данных Qdrant
+    "QDRANT_PATH": BASE_DIR / 'files' / 'qdrant_storage', # Путь к файлам базы данных Qdrant на диске
+    "QDRANT_BATCH_SIZE": 32, # Размер пакета при загрузке документов в Qdrant (больше = быстрее, но больше памяти)
 }

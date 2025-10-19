@@ -13,8 +13,7 @@ def get_model():
     """
     Инициализирует и возвращает синглтон-экземпляр модели Whisper.
     Модель загружается в память при первом вызове и переиспользуется
-    при последующих. Пытается использовать GPU, при неудаче
-    переключается на CPU.
+    при последующих. Использует GPU или CPU
     """
     global WHISPER_MODEL
     
@@ -25,21 +24,20 @@ def get_model():
         model_size = settings.STT_CONFIG.get("MODEL_SIZE", "large")
         gpu_compute_type = settings.STT_CONFIG.get("GPU_COMPUTE_TYPE", "float16")
         cpu_compute_type = settings.STT_CONFIG.get("CPU_COMPUTE_TYPE", "int8")
+        device = settings.STT_CONFIG.get("STT_DEVICE", "cpu")
 
-        # Попытка использовать GPU
-        logger.info("🔄 Загрузка Whisper модели на GPU...")
-        WHISPER_MODEL = WhisperModel(model_size, device="cuda", compute_type=gpu_compute_type)
-        logger.info("✅ Whisper модель загружена на GPU")
-    except Exception as e:
-        logger.warning(f"⚠️ Не удалось загрузить на GPU: {e}")
-        try:
-            # Fallback на CPU
-            logger.info("🔄 Загрузка Whisper модели на CPU...")
+        logger.info("🔄 Загрузка STT модели...")
+
+        if device == "cuda":
+            WHISPER_MODEL = WhisperModel(model_size, device="cuda", compute_type=gpu_compute_type)
+            logger.info("✅ Whisper модель загружена на GPU")
+        else:
             WHISPER_MODEL = WhisperModel(model_size, device="cpu", compute_type=cpu_compute_type)
             logger.info("✅ Whisper модель загружена на CPU")
-        except Exception as cpu_error:
-            logger.error(f"❌ Ошибка инициализации Whisper модели: {cpu_error}")
-            raise RuntimeError("Не удалось инициализировать модель")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка инициализации Whisper модели: {e}")
+        raise RuntimeError("Не удалось инициализировать модель")
     
     return WHISPER_MODEL
 

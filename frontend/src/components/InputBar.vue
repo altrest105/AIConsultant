@@ -51,7 +51,12 @@ async function sendMessage() {
             type: 'text',
             id: Date.now()
         });
-        emit('setBotStatus', 'idle');
+        
+        // Задержка перед сменой статуса на idle
+        setTimeout(() => {
+            emit('setBotStatus', 'idle');
+        }, 5000); // 5 секунд задержки
+        
     } catch (error) {
         console.error('Ошибка при запросе к QA API:', error);
         statusMessage.value = '';
@@ -61,7 +66,12 @@ async function sendMessage() {
             type: 'error',
             id: Date.now()
         });
-        emit('setBotStatus', 'idle');
+        
+        // Задержка перед сменой статуса на idle даже при ошибке
+        setTimeout(() => {
+            emit('setBotStatus', 'idle');
+        }, 3000); // 3 секунды при ошибке
+        
     } finally {
         isLoading.value = false;
     }

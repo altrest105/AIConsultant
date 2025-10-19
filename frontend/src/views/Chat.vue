@@ -87,7 +87,7 @@ onMounted(() => {
       botStatus.value = 'idle';
       hasGreeted.value = true;
     }
-  }, 2500);
+  }, 4000);
 });
 
 function getStatusText() {

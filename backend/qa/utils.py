@@ -32,7 +32,7 @@ def initialize_embeddings():
     global EMBEDDINGS_MODEL
 
     embedding_model_name = settings.QA_CONFIG.get("EMBEDDING_MODEL_NAME")
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = settings.QA_CONFIG.get("QA_DEVICE", "cuda")
 
     logger.info(f"🔄 Загрузка Embedding: {embedding_model_name}")
     try:

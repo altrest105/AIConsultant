@@ -28,7 +28,7 @@ def get_model():
         logger.info("🔄 Загрузка TTS модели...")
 
         model_name = settings.TTS_CONFIG.get("MODEL_NAME", "tts_models/multilingual/multi-dataset/xtts_v2")
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = settings.TTS_CONFIG.get("TTS_DEVICE", "cpu")
 
         TTS_MODEL = TTS(model_name=model_name)
         TTS_MODEL.to(device)

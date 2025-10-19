@@ -33,11 +33,16 @@
 import { defineProps, defineEmits, computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 const props = defineProps({
   status: {
     type: String,
     default: 'idle',
+  },
+  exposure: {
+    type: Number,
+    default: 1.2,
   },
 });
 
@@ -48,7 +53,7 @@ const isLoading = ref(true);
 const loadError = ref(false);
 const loadProgress = ref(0);
 
-let scene, camera, renderer, model, mixer, clock, platform;
+let scene, camera, renderer, model, mixer, clock, platform, pmrem, envRT;
 let animationFrameId = null;
 const animationActions = {};
 let activeAction = null;
@@ -81,32 +86,63 @@ function initThreeScene() {
   camera.position.set(0, 5, 22);
   camera.lookAt(0, 3, -3);
 
-  renderer = new THREE.WebGLRenderer({ 
-    antialias: true, 
-    alpha: true 
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
   });
   renderer.setSize(width, height);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = props.exposure;
+  renderer.physicallyCorrectLights = true;
+  if ('outputColorSpace' in renderer) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if ('outputEncoding' in renderer) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+
   avatarContainer.value.appendChild(renderer.domElement);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+  pmrem = new THREE.PMREMGenerator(renderer);
+  envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+  scene.environment = envRT.texture;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
   scene.add(ambientLight);
 
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-  directionalLight.position.set(2, 3, 2);
+  const hemi = new THREE.HemisphereLight(0xbfdfff, 0x404040, 1.0);
+  hemi.position.set(0, 5, 0);
+  scene.add(hemi);
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 1.4);
+  directionalLight.position.set(4, 6, 4);
   directionalLight.castShadow = true;
   directionalLight.shadow.mapSize.width = 2048;
   directionalLight.shadow.mapSize.height = 2048;
+  directionalLight.shadow.bias = -0.0002;
   scene.add(directionalLight);
 
-  const rimLight = new THREE.DirectionalLight(0x66ccff, 0.6);
-  rimLight.position.set(0, 2, -5);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  fillLight.position.set(-4, 3, -2);
+  scene.add(fillLight);
+
+  const rimLight = new THREE.DirectionalLight(0x66ccff, 1.1);
+  rimLight.position.set(0, 3, -6);
   scene.add(rimLight);
 
+  const spot = new THREE.SpotLight(0xffffff, 1.0, 0, Math.PI / 6, 0.35, 1);
+  spot.position.set(0, 8, 5);
+  spot.castShadow = true;
+  spot.shadow.mapSize.width = 1024;
+  spot.shadow.mapSize.height = 1024;
+  spot.target.position.set(0, 1.5, 0);
+  scene.add(spot);
+  scene.add(spot.target);
+
   const platformGeometry = new THREE.CylinderGeometry(2.5, 2.5, 0.1, 64);
-  
   const platformMaterial = new THREE.MeshStandardMaterial({
     color: 0x003366,
     emissive: 0x0066CC,
@@ -116,7 +152,6 @@ function initThreeScene() {
     transparent: true,
     opacity: 0.5
   });
-
   platform = new THREE.Mesh(platformGeometry, platformMaterial);
   platform.position.y = -1.85;
   platform.receiveShadow = true;
@@ -125,7 +160,6 @@ function initThreeScene() {
   clock = new THREE.Clock();
 
   loadModelAndAnimations();
-
   animate();
 
   window.addEventListener('resize', onWindowResize);
@@ -134,10 +168,10 @@ function initThreeScene() {
 async function loadModelAndAnimations() {
   const loader = new GLTFLoader();
   const animationFiles = {
-    greeting: '/models/hihi.glb',      // приветствие
-    idle: '/models/waiting.glb',       // ожидание (основное состояние)
-    thinking: '/models/attention.glb', // обработка вопроса
-    farewell: '/models/byebye.glb',    // прощание
+    greeting: '/models/hihi.glb',
+    idle: '/models/waiting.glb',
+    thinking: '/models/attention.glb',
+    farewell: '/models/byebye.glb',
   };
 
   try {
@@ -155,17 +189,20 @@ async function loadModelAndAnimations() {
         child.castShadow = true;
         child.receiveShadow = true;
         if (child.material) {
-          child.material.metalness = 0.3;
-          child.material.roughness = 0.7;
-          child.material.envMapIntensity = 1;
+          if ('roughness' in child.material) child.material.roughness = Math.min(child.material.roughness ?? 0.7, 0.5);
+          if ('metalness' in child.material) child.material.metalness = Math.max(child.material.metalness ?? 0.3, 0.35);
+          child.material.envMapIntensity = 2.2;
         }
       }
     });
     scene.add(model);
 
     mixer = new THREE.AnimationMixer(model);
-    const idleAction = mixer.clipAction(gltf.animations[0]);
-    animationActions['idle'] = idleAction;
+    const idleClip = gltf.animations?.[0];
+    if (idleClip) {
+      const idleAction = mixer.clipAction(idleClip);
+      animationActions['idle'] = idleAction;
+    }
 
     const allPromises = Object.entries(animationFiles).map(([name, path], index) =>
       loader.loadAsync(path, (progress) => {
@@ -175,7 +212,7 @@ async function loadModelAndAnimations() {
           loadProgress.value = Math.round(baseProgress + (index * baseProgress) + currentAnimProgress);
         }
       }).then(animGltf => {
-        const clip = animGltf.animations[0];
+        const clip = animGltf.animations?.[0];
         if (clip) {
           animationActions[name] = mixer.clipAction(clip);
         }
@@ -186,7 +223,7 @@ async function loadModelAndAnimations() {
 
     isLoading.value = false;
     loadProgress.value = 100;
-    
+
     setActiveAnimation('greeting');
 
   } catch (error) {
@@ -224,33 +261,33 @@ function retryLoad() {
   for (const key in animationActions) {
     delete animationActions[key];
   }
-  if(mixer) mixer.stopAllAction();
+  if (mixer) mixer.stopAllAction();
 
   loadModelAndAnimations();
 }
 
 function animate() {
   animationFrameId = requestAnimationFrame(animate);
-  
+
   const delta = clock.getDelta();
-  
+
   if (mixer) {
     mixer.update(delta);
   }
-  
+
   if (platform) {
     platform.rotation.y += delta * 0.1;
   }
-  
+
   renderer.render(scene, camera);
 }
 
 function onWindowResize() {
   if (!avatarContainer.value) return;
-  
+
   const width = avatarContainer.value.clientWidth;
   const height = avatarContainer.value.clientHeight;
-  
+
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   renderer.setSize(width, height);
@@ -260,16 +297,19 @@ function cleanup() {
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
   }
-  
+
   window.removeEventListener('resize', onWindowResize);
-  
+
   if (renderer) {
     renderer.dispose();
     if (avatarContainer.value && renderer.domElement) {
       avatarContainer.value.removeChild(renderer.domElement);
     }
   }
-  
+
+  if (envRT) envRT.dispose();
+  if (pmrem) pmrem.dispose();
+
   if (scene) {
     scene.traverse((object) => {
       if (object.geometry) object.geometry.dispose();
@@ -295,6 +335,10 @@ onUnmounted(() => {
 watch(() => props.status, (newStatus) => {
   if (!model || !mixer) return;
   setActiveAnimation(newStatus);
+});
+
+watch(() => props.exposure, (v) => {
+  if (renderer) renderer.toneMappingExposure = v;
 });
 </script>
 
